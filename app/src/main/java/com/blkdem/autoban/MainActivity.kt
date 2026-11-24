@@ -44,7 +44,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.MaterialTheme
+import com.blkdem.autoban.data.Backup
 import com.blkdem.autoban.data.CallEvent
+import com.blkdem.autoban.data.CsvExport
+import com.blkdem.autoban.data.Repository
+import com.blkdem.autoban.ui.EventActions
+import com.blkdem.autoban.ui.StatsCard
 import com.blkdem.autoban.ui.AutobanTheme
 import com.blkdem.autoban.ui.EventDialog
 import com.blkdem.autoban.ui.JournalScreen
@@ -67,6 +77,37 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
 
     private val app get() = AutobanApp.from(this)
+
+    private fun toast(msg: String) = runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+
+    /** Записать текст в выбранный пользователем файл (SAF). */
+    private fun writeTo(uri: Uri?, produce: () -> String, done: String) {
+        if (uri == null) return
+        thread {
+            runCatching { contentResolver.openOutputStream(uri, "wt")!!.use { it.write(produce().toByteArray(Charsets.UTF_8)) } }
+                .onSuccess { toast(done) }.onFailure { toast("Ошибка: ${it.message}") }
+        }
+    }
+
+    private val exportCsv = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        writeTo(uri, { CsvExport.journal(app.repository.events(Repository.EventFilter(limit = 1_000_000))) }, "Журнал сохранён")
+    }
+    private val exportBackup = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        writeTo(uri, { Backup.encode(app.repository.exportBackup()) }, "Резервная копия сохранена")
+    }
+    private val importBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) thread {
+            runCatching {
+                val text = contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+                val b = Backup.decode(text)
+                app.repository.importBackup(b)
+                b
+            }.onSuccess { toast("Восстановлено: правил ${it.rules.size}, бан ${it.blocklist.size}, белых ${it.whitelist.size}") }
+                .onFailure { toast("Не удалось прочитать файл: ${it.message}") }
+        }
+    }
+
+    private fun stamp() = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US).format(java.util.Date())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -100,7 +141,7 @@ class MainActivity : ComponentActivity() {
         SETTINGS("Настройки", Icons.Filled.Settings),
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
     @Composable
     private fun Root() {
         var tab by rememberSaveable { mutableStateOf(Tab.JOURNAL) }
@@ -133,6 +174,7 @@ class MainActivity : ComponentActivity() {
                                 { permRequest.launch(Manifest.permission.READ_PHONE_STATE) },
                                 { app.settings.protectionEnabled = it })
                         }
+                        StatsCard(app.repository)
                         JournalScreen(app.repository, onOpen = { opened = it })
                     }
                     Tab.RULES -> editing?.let { r ->
@@ -162,12 +204,26 @@ class MainActivity : ComponentActivity() {
                             retentionDays = remember(settingsChanges) { app.settings.retentionDays },
                             onRetention = { app.settings.retentionDays = it },
                             onClear = { thread { app.repository.clearEvents() } },
-                        )
+                        ) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { exportCsv.launch("autoban-journal-${stamp()}.csv") }) { Text("Журнал в CSV") }
+                                OutlinedButton(onClick = { exportBackup.launch("autoban-backup-${stamp()}.json") }) { Text("Резервная копия") }
+                                OutlinedButton(onClick = { importBackup.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("Восстановить") }
+                            }
+                            Text(
+                                "Резервная копия — правила и списки. При восстановлении правила заменяются, списки дополняются.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
             }
         }
-        opened?.let { EventDialog(it, onDismiss = { opened = null }) }
+        opened?.let { e ->
+            EventDialog(e, onDismiss = { opened = null }) {
+                EventActions(e, app.repository, onCreateRule = { r -> opened = null; editing = r; tab = Tab.RULES })
+            }
+        }
         if (tester) TesterDialog(simulate = app.processor::simulate, onDismiss = { tester = false })
     }
 }

@@ -124,6 +124,36 @@ class Repository(context: Context) {
         details = str("details"),
     )
 
+    data class Stats(val total: Int, val allowed: Int, val rejected: Int, val banned: Int, val dryRun: Int, val sim1: Int, val sim2: Int)
+
+    fun stats(sinceMillis: Long): Stats = db.rawQuery(
+        """SELECT COUNT(*),
+             SUM(action = 'ALLOW'), SUM(action = 'REJECT'), SUM(action = 'BAN'),
+             SUM(dry_run IS NOT NULL), SUM(sim_slot = 1), SUM(sim_slot = 2)
+           FROM events WHERE ts >= ?""",
+        arrayOf(sinceMillis.toString()),
+    ).use { c ->
+        c.moveToFirst()
+        Stats(c.getInt(0), c.getInt(1), c.getInt(2), c.getInt(3), c.getInt(4), c.getInt(5), c.getInt(6))
+    }
+
+    // ---------- backup ----------
+
+    fun exportBackup(): Backup = Backup.of(rules(), list(ListType.BLOCK), list(ListType.WHITE))
+
+    /** Правила заменяются, списки дополняются. */
+    fun importBackup(b: Backup) {
+        db.beginTransaction()
+        try {
+            if (b.rules.isNotEmpty()) replaceRules(b.rules)
+            for (type in ListType.entries) for (i in b.entries(type)) addToList(type, i.pattern, i.note, i.ruleName)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        changed()
+    }
+
     // ---------- rules ----------
 
     fun rules(): List<Rule> = db.rawQuery("SELECT * FROM rules ORDER BY priority, id", null).use { c ->
@@ -199,6 +229,9 @@ class Repository(context: Context) {
         if (id != -1L) changed()
         return id != -1L
     }
+
+    fun isInList(type: ListType, pattern: String): Boolean =
+        db.rawQuery("SELECT 1 FROM lists WHERE type = ? AND pattern = ?", arrayOf(type.name, pattern)).use { it.moveToFirst() }
 
     fun removeFromList(id: Long) { db.delete("lists", "id = ?", arrayOf(id.toString())); changed() }
 
