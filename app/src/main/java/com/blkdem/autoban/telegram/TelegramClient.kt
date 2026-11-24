@@ -36,14 +36,40 @@ class TelegramClient(
 
     data class Chat(val id: Long, val title: String)
 
-    fun sendMessage(chatId: String, html: String, silent: Boolean = false) {
-        call("sendMessage", buildJsonObject {
-            put("chat_id", chatId)
-            put("text", html)
-            put("parse_mode", "HTML")
-            put("disable_web_page_preview", true)
-            put("disable_notification", silent)
-        })
+    data class Button(val text: String, val data: String)
+
+    data class Update(val id: Long, val chatId: Long?, val text: String?, val callbackId: String?, val callbackData: String?)
+
+    fun sendMessage(chatId: String, html: String, silent: Boolean = false, buttons: List<Button> = emptyList()) {
+        call("sendMessage", messageBody(chatId, html, silent, buttons))
+    }
+
+    /** Новые сообщения и нажатия кнопок начиная с offset. */
+    fun updates(offset: Long): List<Update> {
+        val result = call("getUpdates", buildJsonObject {
+            put("offset", offset)
+            put("limit", 100)
+            put("timeout", 0)
+            put("allowed_updates", JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive("message"), kotlinx.serialization.json.JsonPrimitive("callback_query"))))
+        }) as? JsonArray ?: return emptyList()
+        return result.map { el ->
+            val u = el.jsonObject
+            val id = u["update_id"]!!.jsonPrimitive.long
+            val msg = u["message"]?.jsonObject
+            val cb = u["callback_query"]?.jsonObject
+            val chat = (msg ?: cb?.get("message")?.jsonObject)?.get("chat")?.jsonObject
+            Update(
+                id = id,
+                chatId = chat?.get("id")?.jsonPrimitive?.long,
+                text = msg?.get("text")?.jsonPrimitive?.contentOrNull,
+                callbackId = cb?.get("id")?.jsonPrimitive?.contentOrNull,
+                callbackData = cb?.get("data")?.jsonPrimitive?.contentOrNull,
+            )
+        }
+    }
+
+    fun answerCallback(callbackId: String, text: String) {
+        call("answerCallbackQuery", buildJsonObject { put("callback_query_id", callbackId); put("text", text) })
     }
 
     /** Чаты из последних входящих сообщений боту — чтобы найти chat_id. */
@@ -56,6 +82,23 @@ class TelegramClient(
             val title = listOf("title", "username", "first_name").firstNotNullOfOrNull { chat[it]?.jsonPrimitive?.contentOrNull } ?: id.toString()
             Chat(id, title)
         }.distinctBy { it.id }.reversed()
+    }
+
+    companion object {
+        fun messageBody(chatId: String, html: String, silent: Boolean, buttons: List<Button>): JsonObject = buildJsonObject {
+            put("chat_id", chatId)
+            put("text", html)
+            put("parse_mode", "HTML")
+            put("disable_web_page_preview", true)
+            put("disable_notification", silent)
+            if (buttons.isNotEmpty()) {
+                put("reply_markup", buildJsonObject {
+                    put("inline_keyboard", JsonArray(listOf(JsonArray(buttons.map { b ->
+                        buildJsonObject { put("text", b.text); put("callback_data", b.data) }
+                    }))))
+                })
+            }
+        }
     }
 
     private fun call(method: String, body: JsonObject): Any? {

@@ -28,6 +28,7 @@ class TelegramNotifier(private val context: Context, private val repo: Repositor
     }
 
     fun schedule(s: TelegramSettings.Snapshot = settings.snapshot()) {
+        BotPoller.sync(context, s)
         val wm = WorkManager.getInstance(context)
         val req = OneTimeWorkRequestBuilder<SendWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -60,10 +61,13 @@ class TelegramNotifier(private val context: Context, private val repo: Repositor
                     repo.setTgStatus(pending.map { it.id }, CallEvent.TgStatus.SENT)
                 } else {
                     for (e in pending) {
-                        client.sendMessage(s.chatId, TelegramFormat.event(e), s.silent)
+                        val buttons = if (s.commands) BotPoller.buttonsFor(e) else emptyList()
+                        client.sendMessage(s.chatId, TelegramFormat.event(e), s.silent, buttons)
                         repo.setTgStatus(listOf(e.id), CallEvent.TgStatus.SENT)
                     }
                 }
+                // Пользователь может нажать кнопку вскоре после сообщения — опросим бота через пару минут.
+                if (s.commands) BotPoller.pollSoon(applicationContext, delaySeconds = 120)
                 Result.success()
             } catch (e: TelegramClient.TelegramException) {
                 Log.w(TAG, "telegram send failed (attempt $runAttemptCount): ${e.message}")
