@@ -87,6 +87,13 @@ class Repository(context: Context) {
         changed()
     }
 
+    /** Вернуть неотправленные в очередь. */
+    fun retryFailedTg(): Int {
+        val n = db.compileStatement("UPDATE events SET tg_status = 'PENDING' WHERE tg_status = 'FAILED'").executeUpdateDelete()
+        if (n > 0) changed()
+        return n
+    }
+
     fun eventsWithTgStatus(status: CallEvent.TgStatus, limit: Int = 50): List<CallEvent> =
         db.rawQuery("SELECT * FROM events WHERE tg_status = ? ORDER BY ts LIMIT $limit", arrayOf(status.name))
             .use { c -> generateSequence { if (c.moveToNext()) c.toEvent() else null }.toList() }

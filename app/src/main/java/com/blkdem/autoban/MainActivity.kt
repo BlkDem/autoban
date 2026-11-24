@@ -53,7 +53,9 @@ import com.blkdem.autoban.ui.ListsScreen
 import com.blkdem.autoban.ui.RuleEditor
 import com.blkdem.autoban.ui.RulesScreen
 import com.blkdem.autoban.ui.TesterDialog
+import com.blkdem.autoban.ui.JournalSettingsCard
 import com.blkdem.autoban.ui.StatusCard
+import com.blkdem.autoban.ui.TelegramCard
 import com.blkdem.autoban.ui.SystemStatus
 
 class MainActivity : ComponentActivity() {
@@ -151,6 +153,16 @@ class MainActivity : ComponentActivity() {
                         StatusCard(status, protection, ::requestRole,
                             { permRequest.launch(Manifest.permission.READ_PHONE_STATE) },
                             { app.settings.protectionEnabled = it })
+                        TelegramCard(
+                            app.telegramSettings,
+                            onSaved = { thread { app.telegram.schedule() } },
+                            onRetryFailed = { thread { app.repository.retryFailedTg(); app.telegram.schedule() } },
+                        )
+                        JournalSettingsCard(
+                            retentionDays = remember(settingsChanges) { app.settings.retentionDays },
+                            onRetention = { app.settings.retentionDays = it },
+                            onClear = { thread { app.repository.clearEvents() } },
+                        )
                     }
                 }
             }
