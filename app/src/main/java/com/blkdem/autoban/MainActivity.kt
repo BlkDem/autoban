@@ -118,6 +118,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumeTick++
+        // Подхватить нажатия кнопок/команды бота, пока пользователь смотрит в приложение.
+        thread {
+            val s = app.telegramSettings.snapshot()
+            if (s.enabled && s.configured && s.commands) com.blkdem.autoban.telegram.BotPoller.pollSoon(this)
+        }
     }
 
     private fun status() = SystemStatus(

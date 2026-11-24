@@ -21,6 +21,8 @@ class TelegramSettings(private val settings: Settings) {
         val mode: Mode,
         val digestMinutes: Int,
         val proxy: TelegramClient.ProxyConfig,
+        /** Кнопки под сообщениями и команды боту. */
+        val commands: Boolean = true,
     ) {
         val configured get() = !token.isNullOrBlank() && chatId.isNotBlank()
 
@@ -50,7 +52,13 @@ class TelegramSettings(private val settings: Settings) {
             host = p.getString("tg_proxy_host", "").orEmpty(),
             port = p.getInt("tg_proxy_port", 1080),
         ),
+        commands = p.getBoolean("tg_commands", true),
     )
+
+    /** offset для getUpdates — следующий необработанный update_id. */
+    var offset: Long
+        get() = p.getLong("tg_offset", 0)
+        set(v) { p.edit().putLong("tg_offset", v).apply() }
 
     fun hasToken() = p.contains("tg_token")
 
@@ -70,6 +78,7 @@ class TelegramSettings(private val settings: Settings) {
             putString("tg_proxy_type", s.proxy.type.name)
             putString("tg_proxy_host", s.proxy.host.trim())
             putInt("tg_proxy_port", s.proxy.port)
+            putBoolean("tg_commands", s.commands)
         }.apply()
         settings.notifyChanged()
     }
