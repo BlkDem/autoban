@@ -1,26 +1,59 @@
 package com.blkdem.autoban.screening
 
+import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import android.telecom.TelecomManager
 import android.util.Log
+import com.blkdem.autoban.AutobanApp
+import com.blkdem.autoban.rules.CallInfo
+import com.blkdem.autoban.rules.Decision
+import java.util.concurrent.Executors
 
 class AutobanScreeningService : CallScreeningService() {
 
     override fun onScreenCall(details: Call.Details) {
-        // Этап 0: ничего не блокируем, только пишем всё, что видим.
-        respondToCall(details, CallResponse.Builder().build())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            details.callDirection == Call.Details.DIRECTION_OUTGOING
+        ) {
+            respondToCall(details, CallResponse.Builder().build())
+            return
+        }
+        // Решение принимаем вне главного потока: на ответ у нас ~5 секунд.
+        executor.execute { screen(details) }
+    }
+
+    private fun screen(details: Call.Details) {
+        var responded = false
         try {
-            val info = extract(details)
-            Log.i(TAG, info.toString())
-            CallLogFile.append(this, info, "ALLOW (логгер)")
+            val app = AutobanApp.from(this)
+            val sim = SimResolver(this).resolve(details.accountHandle)
+            val info = extract(details, sim)
+            val decision = app.processor.decide(info)
+            respondToCall(details, response(decision))
+            responded = true
+            Log.i(TAG, "${info.number ?: "hidden"} sim=${info.simSlot}(${sim?.method}) name=${info.callerName} -> ${decision.action} (${decision.ruleName})")
+            val raw = "sim=${sim?.slot} via ${sim?.method} (sub=${sim?.subscriptionId})\n" + describe(details)
+            Log.d(TAG, raw)
+            app.processor.record(info, decision, raw)
         } catch (t: Throwable) {
             Log.e(TAG, "screening failed", t)
+            if (!responded) runCatching { respondToCall(details, CallResponse.Builder().build()) }
         }
     }
 
-    private fun extract(d: Call.Details): CallInfo {
-        val sim = SimResolver(this).resolve(d.accountHandle)
+    private fun response(d: Decision): CallResponse {
+        val b = CallResponse.Builder()
+        if (d.rejects) {
+            b.setDisallowCall(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) b.setRejectCall(true)
+            // Пока только сброс: звонок остаётся в журнале вызовов и уведомлениях.
+            b.setSkipCallLog(false).setSkipNotification(false)
+        }
+        return b.build()
+    }
+
+    private fun extract(d: Call.Details, sim: SimResolver.Sim?): CallInfo {
         val number = d.handle?.schemeSpecificPart
         return CallInfo(
             timestamp = System.currentTimeMillis(),
@@ -35,6 +68,18 @@ class AutobanScreeningService : CallScreeningService() {
         )
     }
 
+    private fun describe(d: Call.Details): String = buildString {
+        append("handle=").append(d.handle)
+        append("\nhandlePresentation=").append(d.handlePresentation)
+        append("\ncallerDisplayName=").append(d.callerDisplayName)
+        append("\ncallerDisplayNamePresentation=").append(d.callerDisplayNamePresentation)
+        append("\naccountHandle=").append(d.accountHandle?.id).append(" / ").append(d.accountHandle?.componentName?.flattenToShortString())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) append("\ncallerNumberVerificationStatus=").append(d.callerNumberVerificationStatus)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) append("\ncallDirection=").append(d.callDirection)
+        d.extras?.let { e -> for (k in e.keySet()) append("\nextra.").append(k).append('=').append(runCatching { e.get(k) }.getOrNull()) }
+        d.intentExtras?.let { e -> for (k in e.keySet()) append("\nintentExtra.").append(k).append('=').append(runCatching { e.get(k) }.getOrNull()) }
+    }
+
     private fun presentation(code: Int, value: String?) = when (code) {
         TelecomManager.PRESENTATION_ALLOWED ->
             if (value.isNullOrBlank()) CallInfo.Presentation.UNKNOWN else CallInfo.Presentation.PRESENTED
@@ -42,5 +87,8 @@ class AutobanScreeningService : CallScreeningService() {
         else -> CallInfo.Presentation.UNKNOWN
     }
 
-    companion object { private const val TAG = "Autoban" }
+    companion object {
+        private const val TAG = "Autoban"
+        private val executor = Executors.newSingleThreadExecutor()
+    }
 }
