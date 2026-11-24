@@ -17,9 +17,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.unit.dp
+import kotlin.concurrent.thread
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -41,7 +48,11 @@ import com.blkdem.autoban.data.CallEvent
 import com.blkdem.autoban.ui.AutobanTheme
 import com.blkdem.autoban.ui.EventDialog
 import com.blkdem.autoban.ui.JournalScreen
+import com.blkdem.autoban.rules.Rule
+import com.blkdem.autoban.ui.ListsScreen
+import com.blkdem.autoban.ui.RuleEditor
 import com.blkdem.autoban.ui.RulesScreen
+import com.blkdem.autoban.ui.TesterDialog
 import com.blkdem.autoban.ui.StatusCard
 import com.blkdem.autoban.ui.SystemStatus
 
@@ -83,6 +94,7 @@ class MainActivity : ComponentActivity() {
     private enum class Tab(val title: String, val icon: ImageVector) {
         JOURNAL("Журнал", Icons.AutoMirrored.Filled.List),
         RULES("Правила", Icons.Filled.Star),
+        LISTS("Списки", Icons.Filled.Lock),
         SETTINGS("Настройки", Icons.Filled.Settings),
     }
 
@@ -91,6 +103,8 @@ class MainActivity : ComponentActivity() {
     private fun Root() {
         var tab by rememberSaveable { mutableStateOf(Tab.JOURNAL) }
         var opened by remember { mutableStateOf<CallEvent?>(null) }
+        var editing by remember { mutableStateOf<Rule?>(null) }
+        var tester by remember { mutableStateOf(false) }
         val tick = resumeTick
         val status = remember(tick) { status() }
         val settingsChanges by app.settings.changes.collectAsState()
@@ -119,7 +133,20 @@ class MainActivity : ComponentActivity() {
                         }
                         JournalScreen(app.repository, onOpen = { opened = it })
                     }
-                    Tab.RULES -> RulesScreen(app.repository)
+                    Tab.RULES -> editing?.let { r ->
+                        RuleEditor(
+                            r,
+                            onSave = { thread { app.repository.saveRule(it) }; editing = null },
+                            onDelete = { thread { app.repository.deleteRule(it.id) }; editing = null },
+                            onClose = { editing = null },
+                        )
+                    } ?: RulesScreen(app.repository, onEdit = { editing = it }) {
+                        Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { editing = Rule(name = "", conditions = emptyList()) }) { Text("+ Правило") }
+                            OutlinedButton(onClick = { tester = true }) { Text("Проверить звонок") }
+                        }
+                    }
+                    Tab.LISTS -> ListsScreen(app.repository)
                     Tab.SETTINGS -> Column(Modifier.verticalScroll(rememberScrollState())) {
                         StatusCard(status, protection, ::requestRole,
                             { permRequest.launch(Manifest.permission.READ_PHONE_STATE) },
@@ -129,5 +156,6 @@ class MainActivity : ComponentActivity() {
             }
         }
         opened?.let { EventDialog(it, onDismiss = { opened = null }) }
+        if (tester) TesterDialog(simulate = app.processor::simulate, onDismiss = { tester = false })
     }
 }
