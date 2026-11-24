@@ -12,6 +12,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +63,34 @@ fun StatusCard(
                 onAction = onRequestPhoneState,
             )
         }
+    }
+}
+
+@Composable
+fun JournalSettingsCard(retentionDays: Int, onRetention: (Int) -> Unit, onClear: () -> Unit, extra: @Composable () -> Unit = {}) {
+    var text by androidx.compose.runtime.remember(retentionDays) { androidx.compose.runtime.mutableStateOf(retentionDays.toString()) }
+    var confirm by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Журнал", fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    text, { t -> text = t.filter(Char::isDigit).take(4); text.toIntOrNull()?.let(onRetention) },
+                    label = { Text("Хранить, дней (0 — всегда)") }, singleLine = true, modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = { confirm = true }) { Text("Очистить") }
+            }
+            extra()
+        }
+    }
+    if (confirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Очистить журнал?") },
+            text = { Text("Списки и правила останутся.") },
+            confirmButton = { androidx.compose.material3.TextButton({ confirm = false; onClear() }) { Text("Очистить") } },
+            dismissButton = { androidx.compose.material3.TextButton({ confirm = false }) { Text("Отмена") } },
+        )
     }
 }
 
