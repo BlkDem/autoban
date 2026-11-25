@@ -101,15 +101,73 @@ class TelegramClient(
         }
     }
 
-    private fun call(method: String, body: JsonObject): Any? {
+    data class PinnedDocument(val fileId: String, val fileName: String?, val dateSeconds: Long, val caption: String?)
+
+    /** Отправить файл; возвращает message_id. */
+    fun sendDocument(chatId: String, fileName: String, bytes: ByteArray, caption: String, silent: Boolean = true): Long {
+        val boundary = "autoban-${System.nanoTime()}"
+        val body = java.io.ByteArrayOutputStream().apply {
+            fun text(s: String) = write(s.toByteArray(Charsets.UTF_8))
+            fun field(name: String, value: String) = text("--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n")
+            field("chat_id", chatId)
+            field("caption", caption)
+            field("disable_notification", silent.toString())
+            text("--$boundary\r\nContent-Disposition: form-data; name=\"document\"; filename=\"$fileName\"\r\nContent-Type: application/json\r\n\r\n")
+            write(bytes)
+            text("\r\n--$boundary--\r\n")
+        }.toByteArray()
+        val msg = request("sendDocument", "multipart/form-data; boundary=$boundary", body) as JsonObject
+        return msg["message_id"]!!.jsonPrimitive.long
+    }
+
+    fun pinMessage(chatId: String, messageId: Long) {
+        call("pinChatMessage", buildJsonObject { put("chat_id", chatId); put("message_id", messageId); put("disable_notification", true) })
+    }
+
+    /** Последнее закреплённое в чате сообщение, если это файл. */
+    fun pinnedDocument(chatId: String): PinnedDocument? {
+        val chat = call("getChat", buildJsonObject { put("chat_id", chatId) }) as? JsonObject ?: return null
+        val msg = chat["pinned_message"] as? JsonObject ?: return null
+        val doc = msg["document"] as? JsonObject ?: return null
+        return PinnedDocument(
+            fileId = doc["file_id"]!!.jsonPrimitive.content,
+            fileName = doc["file_name"]?.jsonPrimitive?.contentOrNull,
+            dateSeconds = msg["date"]?.jsonPrimitive?.long ?: 0,
+            caption = msg["caption"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
+
+    /** Скачать файл по file_id (до 20 МБ — ограничение Bot API). */
+    fun download(fileId: String): ByteArray {
+        val file = call("getFile", buildJsonObject { put("file_id", fileId) }) as JsonObject
+        val path = file["file_path"]?.jsonPrimitive?.contentOrNull ?: throw TelegramException("Файл недоступен", retryable = false)
+        val conn = URL("$baseUrl/file/bot$token/$path").openConnection(proxy.toProxy()) as HttpURLConnection
+        try {
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 30_000
+            if (conn.responseCode != 200) throw TelegramException("HTTP ${conn.responseCode}", retryable = conn.responseCode >= 500)
+            return conn.inputStream.use { it.readBytes() }
+        } catch (e: TelegramException) {
+            throw e
+        } catch (e: Exception) {
+            throw TelegramException(e.message ?: e.javaClass.simpleName, retryable = true)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun call(method: String, body: JsonObject): Any? =
+        request(method, "application/json; charset=utf-8", body.toString().toByteArray(Charsets.UTF_8))
+
+    private fun request(method: String, contentType: String, body: ByteArray): Any? {
         val conn = URL("$baseUrl/bot$token/$method").openConnection(proxy.toProxy()) as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = 15_000
             conn.readTimeout = 20_000
             conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            conn.setRequestProperty("Content-Type", contentType)
+            conn.outputStream.use { it.write(body) }
             val code = conn.responseCode
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
             val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull()
