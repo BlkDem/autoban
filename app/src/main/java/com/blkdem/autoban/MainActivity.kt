@@ -66,6 +66,8 @@ import com.blkdem.autoban.ui.RuleEditor
 import com.blkdem.autoban.ui.RulesScreen
 import com.blkdem.autoban.ui.TesterDialog
 import com.blkdem.autoban.ui.JournalSettingsCard
+import com.blkdem.autoban.ui.LookupCard
+import com.blkdem.autoban.ui.ReportSection
 import com.blkdem.autoban.ui.StatusCard
 import com.blkdem.autoban.ui.TelegramCard
 import com.blkdem.autoban.ui.SystemStatus
@@ -230,6 +232,10 @@ class MainActivity : ComponentActivity() {
                             onSaved = { thread { app.telegram.schedule() } },
                             onRetryFailed = { thread { app.repository.retryFailedTg(); app.telegram.schedule() } },
                         )
+                        LookupCard(
+                            enabled = remember(settingsChanges) { app.settings.lookupEnabled },
+                            onChange = { app.settings.lookupEnabled = it },
+                        )
                         com.blkdem.autoban.ui.SyncCard(app.repository, app.telegramSettings)
                         JournalSettingsCard(
                             retentionDays = remember(settingsChanges) { app.settings.retentionDays },
@@ -252,6 +258,7 @@ class MainActivity : ComponentActivity() {
         }
         opened?.let { e ->
             EventDialog(e, onDismiss = { opened = null }) {
+                ReportSection(e.id, e.number, app.repository, fetch = { n, force -> app.processor.report(n, force) })
                 EventActions(e, app.repository, onCreateRule = { r -> opened = null; editing = r; tab = Tab.RULES })
             }
         }

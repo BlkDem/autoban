@@ -40,7 +40,7 @@ data class Backup(
 
 /** Экспорт журнала в CSV (UTF-8 с BOM — чтобы Excel правильно открыл кириллицу). */
 object CsvExport {
-    private val header = listOf("time", "sim", "number", "raw_number", "presentation", "caller_name", "action", "source", "rule", "dry_run", "would_action", "telegram")
+    private val header = listOf("time", "sim", "number", "raw_number", "presentation", "caller_name", "action", "source", "rule", "dry_run", "would_action", "telegram", "rating", "reviews", "number_type", "operator", "region")
 
     fun journal(events: List<CallEvent>, tz: TimeZone = TimeZone.getDefault()): String {
         val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).apply { timeZone = tz }
@@ -51,6 +51,8 @@ object CsvExport {
                 listOf(
                     fmt.format(Date(e.timestamp)), e.simSlot?.toString(), e.number, e.rawNumber, e.presentation.name,
                     e.callerName, e.action.name, e.source.name, e.ruleName, e.dryRun, e.wouldAction.name, e.tgStatus.name,
+                    e.report?.rating?.toString(), e.report?.reviews?.toString(), e.report?.categories?.joinToString(", "),
+                    e.report?.operator, e.report?.region,
                 ).joinTo(this, ";") { cell(it) }
                 append("\r\n")
             }

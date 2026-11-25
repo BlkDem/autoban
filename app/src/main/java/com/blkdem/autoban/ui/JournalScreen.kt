@@ -101,6 +101,9 @@ fun EventRow(e: CallEvent, modifier: Modifier = Modifier) {
             Text("SIM${e.simSlot ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             e.callerName?.let { Text("«$it»", style = MaterialTheme.typography.bodySmall) }
         }
+        e.report?.takeIf { it.found }?.let { r ->
+            Text(r.icon + " " + r.summary(maxCategories = 2), style = MaterialTheme.typography.bodySmall, color = reportColor(r))
+        }
         e.ruleName?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         e.dryRun?.let {
             Text(

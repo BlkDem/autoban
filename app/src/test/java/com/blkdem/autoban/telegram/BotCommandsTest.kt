@@ -19,6 +19,8 @@ class BotCommandsTest {
         assertEquals(BotCommand.White("+79123456789"), BotCommand.parse("/white 9123456789"))
         assertTrue(BotCommand.parse("/ban") is BotCommand.Unknown)
         assertTrue(BotCommand.parse("/ban re:(") is BotCommand.Unknown)
+        assertEquals(BotCommand.Who("+79123456789"), BotCommand.parse("/who 8 912 345-67-89"))
+        assertTrue(BotCommand.parse("/who") is BotCommand.Unknown)
         assertTrue(BotCommand.parse("/foo") is BotCommand.Unknown)
         assertNull(BotCommand.parse("привет"))
     }

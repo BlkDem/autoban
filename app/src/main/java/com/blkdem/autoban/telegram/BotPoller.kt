@@ -79,7 +79,8 @@ object BotPoller {
                         u.text != null -> BotCommand.parse(u.text)
                         else -> null
                     } ?: continue
-                    val reply = execute(app.repository, cmd)
+                    val reply = if (cmd is BotCommand.Who) TelegramFormat.who(cmd.number, app.processor.report(cmd.number))
+                        else execute(app.repository, cmd)
                     if (u.callbackId != null) {
                         runCatching { client.answerCallback(u.callbackId, reply.replace(Regex("<[^>]+>"), "").take(190)) }
                     }
@@ -121,6 +122,7 @@ object BotPoller {
             repo.addToList(ListType.WHITE, cmd.pattern, note = "из Telegram", ruleName = "Telegram")
             "✅ <code>${TelegramFormat.escape(show(cmd.pattern))}</code> — в белом списке (проверяется раньше бан-листа)"
         }
+        is BotCommand.Who -> TelegramFormat.who(cmd.number, null)
         is BotCommand.Unknown -> "Не понял: ${TelegramFormat.escape(cmd.text)}\n\n" + BotCommand.HELP
     }
 

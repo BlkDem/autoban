@@ -3,6 +3,7 @@ package com.blkdem.autoban.data
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
+import com.blkdem.autoban.lookup.NumberReport
 import com.blkdem.autoban.rules.Action
 import com.blkdem.autoban.rules.CallInfo
 import com.blkdem.autoban.rules.Decision
@@ -54,7 +55,39 @@ class Repository(context: Context) {
         put("would_action", e.wouldAction.name)
         put("tg_status", e.tgStatus.name)
         put("details", e.details)
+        put("lookup", e.report?.let(::reportToJson))
     }).also { changed() }
+
+    /** Дописать сведения о номере и пересчитанный dry-run (поиск закончился после решения). */
+    fun updateEventReport(id: Long, report: NumberReport, dryRun: String?, wouldAction: Action) {
+        db.update("events", ContentValues().apply {
+            put("lookup", reportToJson(report))
+            put("dry_run", dryRun)
+            put("would_action", wouldAction.name)
+        }, "id = ?", arrayOf(id.toString()))
+        changed()
+    }
+
+    // ---------- lookup cache ----------
+
+    fun cachedReport(number: String): NumberReport? =
+        db.rawQuery("SELECT json FROM lookups WHERE number = ?", arrayOf(number)).use { c ->
+            if (c.moveToFirst()) reportFromJson(c.getString(0)) else null
+        }
+
+    fun cacheReport(r: NumberReport) {
+        db.insertWithOnConflict("lookups", null, ContentValues().apply {
+            put("number", r.number)
+            put("json", reportToJson(r))
+            put("fetched_at", r.fetchedAt)
+        }, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun deleteReportsBefore(ts: Long) { db.delete("lookups", "fetched_at < ?", arrayOf(ts.toString())) }
+
+    private fun reportToJson(r: NumberReport) = Rules.json.encodeToString(NumberReport.serializer(), r)
+    private fun reportFromJson(s: String?): NumberReport? =
+        s?.let { runCatching { Rules.json.decodeFromString(NumberReport.serializer(), it) }.getOrNull() }
 
     fun events(f: EventFilter = EventFilter()): List<CallEvent> {
         val where = mutableListOf<String>()
@@ -123,6 +156,7 @@ class Repository(context: Context) {
         wouldAction = Action.valueOf(str("would_action")!!),
         tgStatus = CallEvent.TgStatus.valueOf(str("tg_status")!!),
         details = str("details"),
+        report = reportFromJson(str("lookup")),
     )
 
     data class Stats(val total: Int, val allowed: Int, val rejected: Int, val banned: Int, val dryRun: Int, val sim1: Int, val sim2: Int)

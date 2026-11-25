@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="csrf-token" content="0jPFsHPXwrVRcVNx3WFLeBLp95QMSCDcjVrOYGDV">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="Кто звонил с номера?">
+    <meta name="author" content="">
+    <link rel="icon" href="/favicon.ico">
+    <meta name="yandex-verification" content="fd0d7bd4ff299074" />
+    <title>Кто звонил с номера? Узнайте кому принадлежит номер телефона Zvonili.com</title>
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/font-awesome.min.css">
+    <link href="/css/main.css" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar navbar-dark navbar-expand-lg fixed-top" style="background-color:  #6200EE !important">
+    <a class="navbar-brand" href="/">
+        <img src="/img/logo.svg"  style="width: 24px; height: 24px; padding-top: 5px; vertical-align: top">
+        Звонили
+    </a>
+    <button class="navbar-toggler navbar-toggler-right custom-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarMenu" aria-controls="navbarMenu" aria-expanded="false"
+            aria-label="nac">
+        <span class="navbar-toggler-icon" ></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarMenu">
+        <ul class="navbar-nav mr-auto">
+            <li class="nav-item active">
+                <a class="nav-link" href="/">Главная</a>
+            </li>
+            <li class="nav-item active">
+                <a class="nav-link" href="/codes">Коды номеров</a>
+            </li>
+        </ul>
+        <ul class="navbar-nav">
+                            <li class="nav-item active">
+                    <a class="nav-link" href="https://zvonili.com/login">Войти</a>
+                </li>
+                    </ul>
+    </div>
+</nav>
+<div class="jumbotron">
+    <div class="container p-1">
+       <div class="row">
+        <form action="/phone/search" method="post" class="form-inline w-100">
+            <div class="col-lg-3 find_input">
+                <label class="find_title">Поиск по номеру телефона:</label>
+            </div>
+            <div class="col-lg-6 find_input">
+                <input type="text" class="form-control form-control-lg" style="width: 100%" name="number"
+                       placeholder="Например, +74957501243" id="number" value="">
+            </div>
+            <div class="col-lg-3 find_input">
+                <input type="submit" class="btn btn-primary btn-lg" style="width: 100%" href="#" value="Поиск &raquo;"
+                       role="button"/>
+            </div>
+            <input type="hidden" name="_token" value="0jPFsHPXwrVRcVNx3WFLeBLp95QMSCDcjVrOYGDV" autocomplete="off">
+        </form>
+       </div>
+    </div>
+</div>
+<div class="container">
+<div class="row">
+    <div class="col-lg-8">
+        <div class="alert alert-danger" role="alert">
+            <strong>Ошибка!</strong> Неправильный формат номера. Попробуйте еще раз
+        </div>
+    </div>
+    <div class="col-lg-4">
+    </div>
+</div>
+</div><!-- /container -->
+<footer class="footer">
+    <div class="container">
+        <span><a href="/rules">Правила</a></span>
+        <span class="ml-3"><a href="/contact">Контакты</a></span>
+        <span class="ml-3"><a href="https://play.google.com/store/apps/details?id=com.aksis.whocalls&referrer=utm_source%3Dsite%26utm_medium%3Dbanner%26utm_term%3Dapp%26utm_campaign%3Dzvonili" target="_blank"><img style="width: 110px;" src="/img/gplay.svg"></a></span>
+        <span class="ml-3"><a href="https://vk.com/zvonilicom" target="_blank"><img width="24" height="24" src="/img/vk.svg"></a></span>
+        <span style="float: right" class="text-muted">zvonili.com 2021</span>
+    </div>
+</footer>
+<!-- Yandex.Metrika counter -->
+<noscript><div><img src="https://mc.yandex.ru/watch/45696432" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+</body>
+</html>

@@ -38,6 +38,6 @@ class BackupTest {
         val csv = CsvExport.journal(listOf(e), TimeZone.getTimeZone("UTC"))
         val lines = csv.removePrefix("﻿").split("\r\n")
         assertTrue(lines[0].startsWith("time;sim;number"))
-        assertEquals("1970-01-01 00:00:00;2;+79123456789;89123456789;PRESENTED;\"ООО \"\"Рога; и копыта\"\"\";BAN;RULE;r;;BAN;NONE", lines[1])
+        assertEquals("1970-01-01 00:00:00;2;+79123456789;89123456789;PRESENTED;\"ООО \"\"Рога; и копыта\"\"\";BAN;RULE;r;;BAN;NONE;;;;;", lines[1])
     }
 }

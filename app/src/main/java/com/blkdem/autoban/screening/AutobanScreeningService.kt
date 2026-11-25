@@ -1,6 +1,7 @@
 package com.blkdem.autoban.screening
 
 import android.os.Build
+import android.os.SystemClock
 import android.telecom.Call
 import android.telecom.CallScreeningService
 import android.telecom.TelecomManager
@@ -20,19 +21,24 @@ class AutobanScreeningService : CallScreeningService() {
             return
         }
         // Решение принимаем вне главного потока: на ответ у нас ~5 секунд.
-        executor.execute { screen(details) }
+        val started = SystemClock.elapsedRealtime()
+        executor.execute { screen(details, started) }
     }
 
-    private fun screen(details: Call.Details) {
+    private fun screen(details: Call.Details, started: Long) {
         var responded = false
         try {
             val app = AutobanApp.from(this)
             val sim = SimResolver(this).resolve(details.accountHandle)
-            val info = extract(details, sim)
+            var info = extract(details, sim)
+            val budget = RESPONSE_BUDGET_MS - (SystemClock.elapsedRealtime() - started)
+            info = info.copy(report = app.processor.reportBeforeDecision(info, budget))
             val decision = app.processor.decide(info)
             respondToCall(details, response(decision))
             responded = true
-            Log.i(TAG, "${info.number ?: "hidden"} sim=${info.simSlot}(${sim?.method}) name=${info.callerName} -> ${decision.action} (${decision.ruleName})")
+            Log.i(TAG, "${info.number ?: "hidden"} sim=${info.simSlot}(${sim?.method}) name=${info.callerName} " +
+                "report=${info.report?.summary()} -> ${decision.action} (${decision.ruleName}) " +
+                "in ${SystemClock.elapsedRealtime() - started}ms")
             val raw = "sim=${sim?.slot} via ${sim?.method} (sub=${sim?.subscriptionId})\n" + describe(details)
             Log.d(TAG, raw)
             app.processor.record(info, decision, raw)
@@ -89,6 +95,8 @@ class AutobanScreeningService : CallScreeningService() {
 
     companion object {
         private const val TAG = "Autoban"
+        /** Система ждёт ответа ~5 секунд; оставляем запас. */
+        private const val RESPONSE_BUDGET_MS = 4000L
         private val executor = Executors.newSingleThreadExecutor()
     }
 }
