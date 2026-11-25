@@ -230,6 +230,7 @@ class MainActivity : ComponentActivity() {
                             onSaved = { thread { app.telegram.schedule() } },
                             onRetryFailed = { thread { app.repository.retryFailedTg(); app.telegram.schedule() } },
                         )
+                        com.blkdem.autoban.ui.SyncCard(app.repository, app.telegramSettings)
                         JournalSettingsCard(
                             retentionDays = remember(settingsChanges) { app.settings.retentionDays },
                             onRetention = { app.settings.retentionDays = it },
