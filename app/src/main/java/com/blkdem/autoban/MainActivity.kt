@@ -158,7 +158,14 @@ class MainActivity : ComponentActivity() {
         notificationAccess = com.blkdem.autoban.live.LiveCalls.hasNotificationAccess(this),
         answerCalls = granted(Manifest.permission.ANSWER_PHONE_CALLS),
         callLog = granted(Manifest.permission.READ_CALL_LOG),
+        radioLog = com.blkdem.autoban.live.RadioLog.available(this),
     )
+
+    private fun copyGrantCommand() {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("adb", com.blkdem.autoban.live.RadioLog.GRANT_COMMAND))
+        toast("Команда скопирована — выполните её на компьютере с подключённым телефоном")
+    }
 
     private fun openNotificationAccess() {
         runCatching { startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
@@ -246,6 +253,7 @@ class MainActivity : ComponentActivity() {
                             onNotificationAccess = ::openNotificationAccess,
                             onAnswerCalls = { permRequest.launch(Manifest.permission.ANSWER_PHONE_CALLS) },
                             onCallLog = { permRequest.launch(Manifest.permission.READ_CALL_LOG) },
+                            onRadioLog = ::copyGrantCommand,
                         )
                         LookupCard(
                             enabled = remember(settingsChanges) { app.settings.lookupEnabled },

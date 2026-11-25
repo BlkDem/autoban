@@ -4,6 +4,10 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
 import com.blkdem.autoban.AutobanApp
 
 /**
@@ -27,9 +31,26 @@ class DialerNotificationListener : NotificationListenerService() {
             for (key in KEYS) add(ex.getCharSequence(key)?.toString())
             ex.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach { add(it?.toString()) }
             add(n.tickerText?.toString())
-        }.filterNotNull().filter { it.isNotBlank() }
+            addAll(viewTexts(n))
+        }.filterNotNull().filter { it.isNotBlank() }.distinct()
         Log.i(TAG, "dialer notification ${sbn.packageName} category=${n.category}: $texts")
         live.onNotificationTexts(texts)
+    }
+
+    /** Звонилка Samsung рисует уведомление своей разметкой: имя и подпись могут быть только в ней. */
+    @Suppress("DEPRECATION")
+    private fun viewTexts(n: Notification): List<String> {
+        val rv = n.headsUpContentView ?: n.bigContentView ?: n.contentView ?: return emptyList()
+        return runCatching {
+            val out = ArrayList<String>()
+            collect(rv.apply(applicationContext, FrameLayout(applicationContext)), out)
+            out
+        }.onFailure { Log.w(TAG, "dialer notification view: $it") }.getOrDefault(emptyList())
+    }
+
+    private fun collect(v: View, out: MutableList<String>) {
+        if (v is TextView) v.text?.toString()?.let(out::add)
+        if (v is ViewGroup) for (i in 0 until v.childCount) collect(v.getChildAt(i), out)
     }
 
     companion object {

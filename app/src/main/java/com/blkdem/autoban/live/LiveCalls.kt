@@ -22,7 +22,7 @@ import java.util.concurrent.Executors
 
 /**
  * Сопровождение звонка, который фильтр пропустил: пока телефон звонит —
- *  - ловит подпись оператора (маркировку) из уведомления звонилки и сбрасывает звонок, если её ловит правило;
+ *  - ловит подпись оператора (маркировку) из системного лога или уведомления звонилки и сбрасывает звонок, если её ловит правило;
  *  - присылает в Telegram сообщение с подписью и отзывами и кнопками «Сбросить» / «Бан»,
  *    а бота опрашивает непрерывно, чтобы кнопка сработала сразу;
  *  - после звонка берёт подпись из журнала вызовов и обновляет журнал и сообщение.
@@ -66,6 +66,8 @@ class LiveCalls(private val app: AutobanApp) {
      */
     fun start(e: CallEvent, info: CallInfo, lookupPending: Boolean): Boolean {
         val s = Session(e.id, info, System.currentTimeMillis(), lookupPending)
+        // Подпись могла прийти уже в фильтр (из системного лога).
+        s.label = info.callerName?.takeIf(CallLabel::isOperatorLabel)
         current?.let { it.ended = true }
         current = s
         update(s) { it.copy(outcome = CallEvent.Outcome.RINGING) }
@@ -85,7 +87,7 @@ class LiveCalls(private val app: AutobanApp) {
         val s = current?.takeIf { !it.ended } ?: return
         val label = CallLabel.fromTexts(texts) ?: return
         if (label == s.label) return
-        pool.execute { applyLabel(s, label, duringCall = true) }
+        pool.execute { applyLabel(s, label, "notification") }
     }
 
     /** Кнопки «Сбросить» и «Бан» под сообщением о входящем. null — звонок уже не идёт, пусть выполнит обычный обработчик. */
@@ -132,7 +134,12 @@ class LiveCalls(private val app: AutobanApp) {
         if (s.ringing) {
             pool.execute { botLoop(s) }
             val maxEnd = s.started + MAX_RING_MS
+            var radioAt = 0L
             while (callState() == TelephonyManager.CALL_STATE_RINGING && System.currentTimeMillis() < maxEnd) {
+                if (s.label == null && System.currentTimeMillis() - radioAt > 1_000) {
+                    radioAt = System.currentTimeMillis()
+                    RadioLog.label(app, s.started - 3_000)?.let { applyLabel(s, it, "radio log") }
+                }
                 if (!s.tgDone && readyToSend(s)) sendTelegram(s)
                 Thread.sleep(250)
             }
@@ -149,7 +156,7 @@ class LiveCalls(private val app: AutobanApp) {
 
         // Звонилка пишет подпись в журнал вызовов при отбое — даём ей записать и забираем.
         Thread.sleep(1_500)
-        if (s.label == null) CallLogReader.label(app, s.info.number, s.started)?.let { applyLabel(s, it, duringCall = false) }
+        if (s.label == null) CallLogReader.label(app, s.info.number, s.started)?.let { applyLabel(s, it, "call log") }
         if (!s.tgDone) sendTelegram(s) else refreshTelegram(s)
         // Кнопки под сообщением можно нажать и позже — бот опросится через пару минут.
         if (telegramOn()) BotPoller.pollSoon(app, delaySeconds = 120)
@@ -175,12 +182,13 @@ class LiveCalls(private val app: AutobanApp) {
     }
 
     /** Подпись оператора пришла: записываем её и пересчитываем правила. Во время звонка — сбрасываем, если правило велит. */
-    private fun applyLabel(s: Session, label: String, duringCall: Boolean) {
+    private fun applyLabel(s: Session, label: String, from: String) {
+        val duringCall = from != "call log"
         synchronized(s.lock) {
             if (label == s.label) return
             s.label = label
         }
-        Log.i(TAG, "live ${s.info.number ?: "hidden"}: label «$label» (${if (duringCall) "notification" else "call log"})")
+        Log.i(TAG, "live ${s.info.number ?: "hidden"}: label «$label» ($from)")
         val event = repo.event(s.eventId) ?: return
         val d = app.processor.decide(
             s.info.copy(callerName = label, callerNamePresentation = CallInfo.Presentation.PRESENTED, report = event.report),

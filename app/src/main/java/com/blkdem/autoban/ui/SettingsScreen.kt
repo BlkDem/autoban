@@ -27,6 +27,7 @@ data class SystemStatus(
     val notificationAccess: Boolean = false,
     val answerCalls: Boolean = false,
     val callLog: Boolean = false,
+    val radioLog: Boolean = false,
 )
 
 @Composable

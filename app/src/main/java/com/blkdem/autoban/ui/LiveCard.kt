@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.blkdem.autoban.data.CallEvent
+import com.blkdem.autoban.live.RadioLog
 
 /** Разрешения для сопровождения звонка: подпись оператора, сброс по правилу и из Telegram. */
 @Composable
@@ -23,6 +24,7 @@ fun LiveCard(
     onNotificationAccess: () -> Unit,
     onAnswerCalls: () -> Unit,
     onCallLog: () -> Unit,
+    onRadioLog: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -36,6 +38,13 @@ fun LiveCard(
             Line(status.notificationAccess, "Доступ к уведомлениям — видеть подпись во время звонка", "Открыть", onNotificationAccess)
             Line(status.answerCalls, "Управление звонками — сбрасывать звонок", "Разрешить", onAnswerCalls)
             Line(status.callLog, "Журнал вызовов — подпись после звонка", "Разрешить", onCallLog)
+            Line(
+                status.radioLog,
+                "Системный лог — подпись сразу, звонок с ней сбрасывается до звонка. Выдаётся один раз с компьютера: " +
+                    RadioLog.GRANT_COMMAND,
+                "Копировать",
+                onRadioLog,
+            )
         }
     }
 }

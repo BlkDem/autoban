@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
+import android.net.Uri
 import android.provider.CallLog
 import android.util.Log
 import com.blkdem.autoban.rules.CallLabel
@@ -19,17 +20,25 @@ object CallLogReader {
     /** Колонки, где подпись вероятнее всего; остальные текстовые — запасной вариант. */
     private val PREFERRED = listOf("cnap_name", "cnap", CallLog.Calls.CACHED_NAME, "caller_name", "name")
 
+    /**
+     * Samsung хранит подпись в колонке `cnap_name` своего журнала (`content://logs/call`);
+     * стандартный журнал вызовов эту колонку сторонним приложениям не отдаёт.
+     */
+    private val SAMSUNG_LOGS: Uri = Uri.parse("content://logs/call")
+
     fun label(context: Context, number: String?, since: Long): String? {
         if (context.checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return null
-        return try {
-            context.contentResolver.query(
-                CallLog.Calls.CONTENT_URI, null, "${CallLog.Calls.DATE} >= ?", arrayOf((since - 60_000).toString()),
-                "${CallLog.Calls.DATE} DESC",
-            )?.use { c -> find(c, number) }
-        } catch (e: Exception) {
-            Log.w(TAG, "call log read failed: $e")
-            null
-        }
+        return query(context, SAMSUNG_LOGS, number, since) ?: query(context, CallLog.Calls.CONTENT_URI, number, since)
+    }
+
+    private fun query(context: Context, uri: Uri, number: String?, since: Long): String? = try {
+        context.contentResolver.query(
+            uri, null, "${CallLog.Calls.DATE} >= ?", arrayOf((since - 60_000).toString()),
+            "${CallLog.Calls.DATE} DESC",
+        )?.use { c -> find(c, number) }
+    } catch (e: Exception) {
+        Log.w(TAG, "call log $uri read failed: $e")
+        null
     }
 
     private fun find(c: Cursor, number: String?): String? {
