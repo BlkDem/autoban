@@ -31,12 +31,8 @@ sealed interface BotCommand {
             }
         }
 
-        /** Номер нормализуется (`8912…` → `+7912…`), маска — оставляется как есть. */
-        fun pattern(arg: String): String? {
-            if (arg.isBlank()) return null
-            val isMask = arg.contains('*') || arg.contains('?') || arg.startsWith(Mask.REGEX_PREFIX)
-            return if (isMask) arg.takeIf { Mask.forNumber(it).isValid } else PhoneNumbers.normalize(arg)
-        }
+        /** Номер или маска в едином виде списков (см. [com.blkdem.autoban.rules.ListImport.canonical]). */
+        fun pattern(arg: String): String? = com.blkdem.autoban.rules.ListImport.canonical(arg)
 
         /** callback_data кнопок: `ban:+79…`, `unban:+79…`, `white:+79…` (≤ 64 байт). */
         fun fromCallback(data: String): BotCommand? {

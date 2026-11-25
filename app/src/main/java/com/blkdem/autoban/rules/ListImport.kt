@@ -35,6 +35,7 @@ object ListImport {
         return out
     }
     private val phoneChars = Regex("[+0-9 ()\\-.]+")
+    private val numberMask = Regex("\\+?[0-9*?]*[*?][0-9*?]*")
 
     /** UTF-8, а если файл в нём не читается — Windows-1251 (так сохраняет CSV русский Excel). */
     fun decode(bytes: ByteArray): String {
@@ -59,17 +60,27 @@ object ListImport {
 
     /** Одна строка → запись или null, если номер не распознан. */
     fun parseLine(line: String): Item? {
-        if (line.startsWith(Mask.REGEX_PREFIX)) {
-            return if (Mask.forNumber(line).isValid) Item(line, null) else null
-        }
+        if (line.startsWith(Mask.REGEX_PREFIX)) return canonical(line)?.let { Item(it, null) }
         val fields = splitFields(line)
         val first = fields.first()
         val note = fields.drop(1).firstOrNull { it.isNotEmpty() }?.take(200)
-        val pattern = when {
-            first.contains('*') || first.contains('?') -> first.filterNot { it == ' ' }.takeIf { Mask.forNumber(it).isValid }
-            first.matches(phoneChars) && first.count { it.isDigit() } >= 3 -> PhoneNumbers.normalize(first)
-            else -> null
-        } ?: return null
+        val pattern = canonical(first) ?: return null
         return Item(pattern, note)
+    }
+
+    /**
+     * Единый вид записи списка — чтобы одно и то же не хранилось дважды:
+     * номер → `+79123456789`, маска → без пробелов/скобок/дефисов/точек (`+7 (495) *` → `+7495*`),
+     * `re:` — как есть. null — не номер и не маска.
+     */
+    fun canonical(raw: String): String? {
+        val s = raw.trim()
+        return when {
+            s.startsWith(Mask.REGEX_PREFIX) -> s.takeIf { Mask.forNumber(it).isValid }
+            s.contains('*') || s.contains('?') ->
+                s.filterNot { it == ' ' || it == '-' || it == '(' || it == ')' || it == '.' }.takeIf { it.matches(numberMask) }
+            s.matches(phoneChars) && s.count { it.isDigit() } >= 3 -> PhoneNumbers.normalize(s)
+            else -> null
+        }
     }
 }
