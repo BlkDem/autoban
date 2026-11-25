@@ -2,6 +2,7 @@
 .env
 *.keystore
 *.jks
+keystore.properties
 local.properties
 
 # Gradle / Android Studio
