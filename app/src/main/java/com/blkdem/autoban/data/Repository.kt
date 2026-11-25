@@ -230,6 +230,30 @@ class Repository(context: Context) {
         return id != -1L
     }
 
+    /** Массовое добавление (импорт из файла). Возвращает, сколько записей реально добавлено. */
+    fun addAllToList(type: ListType, items: List<com.blkdem.autoban.rules.ListImport.Item>, ruleName: String): Int {
+        var added = 0
+        val now = System.currentTimeMillis()
+        db.beginTransaction()
+        try {
+            for (i in items) {
+                val id = db.insertWithOnConflict("lists", null, ContentValues().apply {
+                    put("type", type.name)
+                    put("pattern", i.pattern)
+                    put("note", i.note)
+                    put("created_at", now)
+                    put("rule_name", ruleName)
+                }, android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE)
+                if (id != -1L) added++
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        if (added > 0) changed()
+        return added
+    }
+
     fun isInList(type: ListType, pattern: String): Boolean =
         db.rawQuery("SELECT 1 FROM lists WHERE type = ? AND pattern = ?", arrayOf(type.name, pattern)).use { it.moveToFirst() }
 

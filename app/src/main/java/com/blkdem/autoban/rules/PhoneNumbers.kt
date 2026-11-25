@@ -23,6 +23,12 @@ object PhoneNumbers {
         return out.toList()
     }
 
+    /** Ссылка на поиск отзывов о номере. Российские номера ищем в виде `89123456789` — так их пишут сайты «кто звонил». */
+    fun lookupUrl(normalized: String): String {
+        val n = if (normalized.startsWith("+7") && normalized.length == 12) "8" + normalized.substring(2) else normalized.removePrefix("+")
+        return "https://yandex.ru/search/?text=" + java.net.URLEncoder.encode("$n кто звонил", "UTF-8")
+    }
+
     /** `+79123456789` → `+7 912 345-67-89`. */
     fun pretty(normalized: String?): String {
         if (normalized == null) return "скрыт"

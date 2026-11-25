@@ -1,5 +1,8 @@
 package com.blkdem.autoban.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -11,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.blkdem.autoban.data.CallEvent
@@ -32,6 +36,7 @@ fun EventActions(e: CallEvent, repo: Repository, onCreateRule: (Rule) -> Unit) {
     val inBlock = load(changes, number, initial = false) { number != null && repo.isInList(ListType.BLOCK, number) }
     val inWhite = load(changes, number, initial = false) { number != null && repo.isInList(ListType.WHITE, number) }
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
     FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (number != null) {
@@ -46,6 +51,10 @@ fun EventActions(e: CallEvent, repo: Repository, onCreateRule: (Rule) -> Unit) {
                 OutlinedButton(onClick = { thread { repo.addToList(ListType.WHITE, number, e.callerName, "вручную") } }) { Text("В белый список") }
             }
             OutlinedButton(onClick = { clipboard.setText(AnnotatedString(number)) }) { Text("Копировать") }
+            OutlinedButton(onClick = {
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PhoneNumbers.lookupUrl(number)))) }
+                    .onFailure { Toast.makeText(context, "Нет браузера", Toast.LENGTH_SHORT).show() }
+            }) { Text("Найти в интернете") }
         }
         OutlinedButton(onClick = { onCreateRule(ruleFromEvent(e)) }) { Text("Правило по звонку") }
     }

@@ -15,6 +15,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -38,7 +39,7 @@ import com.blkdem.autoban.rules.PhoneNumbers
 import kotlin.concurrent.thread
 
 @Composable
-fun ListsScreen(repo: Repository) {
+fun ListsScreen(repo: Repository, onImport: (ListType) -> Unit) {
     val changes by repo.changes.collectAsState()
     var type by rememberSaveable { mutableStateOf(ListType.BLOCK) }
     val entries = load(changes, type, initial = emptyList<ListEntry>()) { repo.list(type) }
@@ -55,6 +56,13 @@ fun ListsScreen(repo: Repository) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { onImport(type) }) { Text("Импорт из файла") }
+            Text(
+                "   Записей: ${entries.size}",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (entries.isEmpty()) Text("Список пуст.", modifier = Modifier.padding(16.dp))
         LazyColumn(Modifier.fillMaxSize()) {
             items(entries, key = { it.id }) { e ->

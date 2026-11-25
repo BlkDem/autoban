@@ -58,6 +58,8 @@ import com.blkdem.autoban.ui.StatsCard
 import com.blkdem.autoban.ui.AutobanTheme
 import com.blkdem.autoban.ui.EventDialog
 import com.blkdem.autoban.ui.JournalScreen
+import com.blkdem.autoban.rules.ListImport
+import com.blkdem.autoban.rules.ListType
 import com.blkdem.autoban.rules.Rule
 import com.blkdem.autoban.ui.ListsScreen
 import com.blkdem.autoban.ui.RuleEditor
@@ -104,6 +106,26 @@ class MainActivity : ComponentActivity() {
                 b
             }.onSuccess { toast("Восстановлено: правил ${it.rules.size}, бан ${it.blocklist.size}, белых ${it.whitelist.size}") }
                 .onFailure { toast("Не удалось прочитать файл: ${it.message}") }
+        }
+    }
+
+    /** В какой список импортировать — запоминается до возврата из выбора файла. */
+    private var importListType = ListType.BLOCK
+    private val importList = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) thread {
+            val type = importListType
+            runCatching {
+                val bytes = contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                val parsed = ListImport.parse(ListImport.decode(bytes))
+                parsed to app.repository.addAllToList(type, parsed.items, "импорт")
+            }.onSuccess { (parsed, added) ->
+                val dup = parsed.items.size - added
+                toast(buildString {
+                    append("Добавлено: $added")
+                    if (dup > 0) append(", уже были: $dup")
+                    if (parsed.skipped > 0) append(", не распознано строк: ${parsed.skipped}")
+                })
+            }.onFailure { toast("Не удалось прочитать файл: ${it.message}") }
         }
     }
 
@@ -195,7 +217,10 @@ class MainActivity : ComponentActivity() {
                             OutlinedButton(onClick = { tester = true }) { Text("Проверить звонок") }
                         }
                     }
-                    Tab.LISTS -> ListsScreen(app.repository)
+                    Tab.LISTS -> ListsScreen(app.repository) { type ->
+                        importListType = type
+                        importList.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel", "*/*"))
+                    }
                     Tab.SETTINGS -> Column(Modifier.verticalScroll(rememberScrollState())) {
                         StatusCard(status, protection, ::requestRole,
                             { permRequest.launch(Manifest.permission.READ_PHONE_STATE) },
