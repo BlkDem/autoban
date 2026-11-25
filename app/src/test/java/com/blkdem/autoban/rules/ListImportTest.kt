@@ -39,6 +39,17 @@ class ListImportTest {
         assertTrue(ListImport.parse("abc\n89123456789").let { it.items.size == 1 && it.skipped == 1 })
     }
 
+    @Test fun canonicalFormIsTheSameWhateverTheInput() {
+        for (n in listOf("89123456789", "8 (912) 345-67-89", "+7 912 345 67 89", "9123456789", " 7-912-345-67-89 "))
+            assertEquals(n, "+79123456789", ListImport.canonical(n))
+        for (m in listOf("+7495*", "+7 495 *", "+7 (495) *", "+7-495-*"))
+            assertEquals(m, "+7495*", ListImport.canonical(m))
+        assertEquals("re:^\\+7958", ListImport.canonical("  re:^\\+7958 "))
+        assertEquals("900", ListImport.canonical("900"))
+        assertNull(ListImport.canonical("позвонить маме"))
+        assertNull(ListImport.canonical("*["))
+    }
+
     @Test fun decodesUtf8AndCp1251() {
         val s = "89123456789;Ростелеком"
         assertEquals(s, ListImport.decode(s.toByteArray(Charsets.UTF_8)))

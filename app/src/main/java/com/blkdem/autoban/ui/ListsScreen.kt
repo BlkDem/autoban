@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.blkdem.autoban.data.Repository
 import com.blkdem.autoban.rules.ListEntry
+import com.blkdem.autoban.rules.ListImport
 import com.blkdem.autoban.rules.ListType
 import com.blkdem.autoban.rules.Mask
 import com.blkdem.autoban.rules.PhoneNumbers
@@ -86,9 +87,8 @@ fun ListsScreen(repo: Repository, onImport: (ListType) -> Unit) {
 private fun AddEntry(type: ListType, onAdd: (String, String?) -> Unit) {
     var pattern by remember(type) { mutableStateOf("") }
     var note by remember(type) { mutableStateOf("") }
-    val isMask = pattern.contains('*') || pattern.contains('?') || pattern.startsWith(Mask.REGEX_PREFIX)
-    val value = if (isMask) pattern.trim() else PhoneNumbers.normalize(pattern)
-    val ok = value != null && (!isMask || Mask.forNumber(value).isValid)
+    val value = ListImport.canonical(pattern)
+    val ok = value != null
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(pattern, { pattern = it }, label = { Text("Номер или маска") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

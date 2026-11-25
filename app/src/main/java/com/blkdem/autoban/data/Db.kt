@@ -51,8 +51,24 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Пока одна версия схемы.
+        if (oldVersion < 2) canonicalizeLists(db)
     }
 
-    companion object { const val VERSION = 1 }
+    /** v2: записи списков в едином виде; появившиеся дубли удаляются (остаётся более ранняя). */
+    private fun canonicalizeLists(db: SQLiteDatabase) {
+        val rows = db.rawQuery("SELECT id, type, pattern FROM lists ORDER BY created_at, id", null).use { c ->
+            generateSequence { if (c.moveToNext()) Triple(c.getLong(0), c.getString(1), c.getString(2)) else null }.toList()
+        }
+        val seen = HashSet<Pair<String, String>>()
+        for ((id, type, pattern) in rows) {
+            val canon = com.blkdem.autoban.rules.ListImport.canonical(pattern) ?: pattern.trim()
+            if (!seen.add(type to canon)) {
+                db.delete("lists", "id = ?", arrayOf(id.toString()))
+            } else if (canon != pattern) {
+                db.execSQL("UPDATE lists SET pattern = ? WHERE id = ?", arrayOf<Any>(canon, id))
+            }
+        }
+    }
+
+    companion object { const val VERSION = 2 }
 }

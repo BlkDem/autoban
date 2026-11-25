@@ -7,6 +7,7 @@ import com.blkdem.autoban.rules.Action
 import com.blkdem.autoban.rules.CallInfo
 import com.blkdem.autoban.rules.Decision
 import com.blkdem.autoban.rules.ListEntry
+import com.blkdem.autoban.rules.ListImport
 import com.blkdem.autoban.rules.ListType
 import com.blkdem.autoban.rules.Rule
 import com.blkdem.autoban.rules.RuleMode
@@ -217,11 +218,11 @@ class Repository(context: Context) {
             }.toList()
         }
 
-    /** Добавить запись; если такая уже есть — ничего не делать. */
+    /** Добавить запись; если такая уже есть (в едином виде, см. [ListImport.canonical]) — ничего не делать. */
     fun addToList(type: ListType, pattern: String, note: String? = null, ruleName: String? = null): Boolean {
         val id = db.insertWithOnConflict("lists", null, ContentValues().apply {
             put("type", type.name)
-            put("pattern", pattern.trim())
+            put("pattern", ListImport.canonical(pattern) ?: pattern.trim())
             put("note", note)
             put("created_at", System.currentTimeMillis())
             put("rule_name", ruleName)

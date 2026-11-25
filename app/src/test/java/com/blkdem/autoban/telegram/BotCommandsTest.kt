@@ -14,6 +14,7 @@ class BotCommandsTest {
         assertEquals(BotCommand.Last(50), BotCommand.parse("/last 999"))
         assertEquals(BotCommand.Ban("+79123456789"), BotCommand.parse("/ban 8 (912) 345-67-89"))
         assertEquals(BotCommand.Ban("+7495*"), BotCommand.parse("/ban +7495*"))
+        assertEquals(BotCommand.Ban("+7495*"), BotCommand.parse("/ban +7 (495) *"))
         assertEquals(BotCommand.Unban("+79123456789"), BotCommand.parse("/UNBAN +79123456789"))
         assertEquals(BotCommand.White("+79123456789"), BotCommand.parse("/white 9123456789"))
         assertTrue(BotCommand.parse("/ban") is BotCommand.Unknown)
