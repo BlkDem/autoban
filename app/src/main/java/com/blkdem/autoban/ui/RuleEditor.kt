@@ -141,6 +141,7 @@ private fun AddConditionButton(onAdd: (Condition) -> Unit) {
                 "Номер по маске" to Condition.NumberMask("+7"),
                 "Время и дни" to Condition.TimeWindow(fromMinute = 9 * 60, toMinute = 21 * 60),
                 "Повторный звонок" to Condition.Repeated(2, 3),
+                "Репутация по отзывам" to Condition.Reputation(),
             ).forEach { (label, c) ->
                 DropdownMenuItem(text = { Text(label) }, onClick = { open = false; onAdd(c) })
             }
@@ -196,6 +197,22 @@ private fun ConditionCard(c: Condition, onChange: (Condition) -> Unit, onRemove:
                     NumberField("Звонок №", c.count, Modifier.weight(1f)) { onChange(c.copy(count = it.coerceAtLeast(2))) }
                     NumberField("За минут", c.minutes, Modifier.weight(1f)) { onChange(c.copy(minutes = it.coerceAtLeast(1))) }
                 }
+                is Condition.Reputation -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField("Отзывов не меньше", c.minReviews, Modifier.weight(1f)) { onChange(c.copy(minReviews = it.coerceAtLeast(1))) }
+                        RatingField(c.maxRating, Modifier.weight(1f)) { onChange(c.copy(maxRating = it)) }
+                    }
+                    OutlinedTextField(
+                        c.category, { onChange(c.copy(category = it.trim())) }, label = { Text("Тип номера (маска)") }, singleLine = true,
+                        isError = !Mask(c.category).isValid, modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("Например: *мошен*  ·  *коллект*  ·  пусто — любой тип") },
+                    )
+                    Text(
+                        "Отзывы берутся с zvonili.com. В боевом режиме звонок задерживается до 3 секунд, пока идёт поиск " +
+                            "(повторные звонки — из кэша, мгновенно). В dry-run звонок не задерживается.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }
@@ -234,6 +251,19 @@ private fun TimeField(label: String, minutes: Int, modifier: Modifier, onChange:
     OutlinedTextField(
         text, { text = it; parseHm(it)?.let(onChange) }, label = { Text(label) }, singleLine = true,
         isError = parsed == null, modifier = modifier,
+    )
+}
+
+/** Оценка 0…5 с дробной частью; 0 — не учитывать. */
+@Composable
+private fun RatingField(value: Double, modifier: Modifier, onChange: (Double) -> Unit) {
+    var text by remember(value) { mutableStateOf(com.blkdem.autoban.lookup.NumberReport.fmtRating(value)) }
+    fun parse(t: String) = t.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..5.0 }
+    OutlinedTextField(
+        text, { t -> text = t.filter { it.isDigit() || it == '.' || it == ',' }.take(4); parse(text)?.let(onChange) },
+        label = { Text("Оценка не выше") }, singleLine = true, isError = parse(text) == null,
+        supportingText = { Text("0 — не важно") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = modifier,
     )
 }
 

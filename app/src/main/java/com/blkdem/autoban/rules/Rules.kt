@@ -39,6 +39,16 @@ object Rules {
             conditions = listOf(Condition.SimSlot(2), Condition.NumberPresented, Condition.CallerName("*ростелеком*")),
             action = Action.BAN,
         ),
+        reputationDefault,
+    )
+
+    /** Плохие отзывы о номере. В dry-run звонок не задерживает: сведения дописываются после решения. */
+    val reputationDefault get() = Rule(
+        name = "Плохие отзывы",
+        priority = 30,
+        mode = RuleMode.DRY_RUN,
+        conditions = listOf(Condition.Reputation(minReviews = 3, maxRating = 2.0)),
+        action = Action.REJECT,
     )
 
     /** Человекочитаемое описание условия. */
@@ -53,6 +63,11 @@ object Rules {
             append(hm(c.fromMinute)).append('–').append(hm(c.toMinute))
         }
         is Condition.Repeated -> "${c.count}-й звонок за ${c.minutes} мин"
+        is Condition.Reputation -> buildList {
+            add("отзывов ≥ ${c.minReviews}")
+            if (c.maxRating > 0) add("оценка ≤ ${com.blkdem.autoban.lookup.NumberReport.fmtRating(c.maxRating)}")
+            if (c.category.isNotBlank()) add("тип ~ «${c.category}»")
+        }.joinToString(", ", prefix = "репутация: ")
     }
 
     fun describe(a: Action): String = when (a) {

@@ -1,6 +1,7 @@
 package com.blkdem.autoban.telegram
 
 import com.blkdem.autoban.data.CallEvent
+import com.blkdem.autoban.lookup.NumberReport
 import com.blkdem.autoban.rules.Action
 import com.blkdem.autoban.rules.CallInfo
 import com.blkdem.autoban.rules.Decision
@@ -45,6 +46,35 @@ class TelegramFormatTest {
     @Test fun escapesHtml() {
         val m = TelegramFormat.event(ev(Action.BAN, name = "<ООО & Ко>"), tz)
         assertTrue(m.contains("«&lt;ООО &amp; Ко&gt;»"))
+    }
+
+    @Test fun allowedWithReport() {
+        val r = NumberReport(
+            "+79123456789", found = true, rating = 1.35, reviews = 7631, categories = listOf("Мошенники", "Реклама"),
+            operator = "ПАО \"МТС\"", region = "г. Москва",
+            comments = listOf(NumberReport.Comment("18.10.2026 19:53", "Мошенники", "Звонят <снова>")),
+            url = "https://zvonili.com/phone/9123456789",
+        )
+        val e = ev(Action.ALLOW).copy(source = Decision.Source.DEFAULT, ruleName = null, report = r)
+        assertEquals(
+            "📞 <b>ВХОДЯЩИЙ</b> · SIM2\n<code>+7 912 345-67-89</code>\n" +
+                "⚠️ 1.35/5 · 7631 отзыв · Мошенники, Реклама\n" +
+                "ПАО \"МТС\" · г. Москва\n" +
+                "💬 18.10.2026: <i>Звонят &lt;снова&gt;</i> (Мошенники)\n" +
+                "25.11.2026 14:12 · <a href=\"https://zvonili.com/phone/9123456789\">zvonili.com</a>",
+            TelegramFormat.event(e, tz),
+        )
+        val line = TelegramFormat.digest(listOf(e), tz).lines().last()
+        assertEquals("14:12 📞 SIM2 <code>+7 912 345-67-89</code> ⚠️1.35/5 Мошенники", line)
+    }
+
+    @Test fun whoReply() {
+        val none = TelegramFormat.who("+79123456789", NumberReport("+79123456789", found = true, url = "https://zvonili.com/phone/9123456789"))
+        assertEquals(
+            "🔎 <code>+7 912 345-67-89</code>\nℹ️ отзывов нет\n<a href=\"https://zvonili.com/phone/9123456789\">zvonili.com</a>",
+            none,
+        )
+        assertTrue(TelegramFormat.who("+79123456789", null).contains("сайт не ответил"))
     }
 
     @Test fun digest() {

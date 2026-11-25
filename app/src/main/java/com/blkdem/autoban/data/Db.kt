@@ -21,7 +21,7 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
                 caller_name TEXT, sim_slot INTEGER, sim_label TEXT,
                 action TEXT NOT NULL, source TEXT NOT NULL,
                 rule_id INTEGER, rule_name TEXT, dry_run TEXT, would_action TEXT NOT NULL,
-                tg_status TEXT NOT NULL DEFAULT 'NONE', details TEXT)"""
+                tg_status TEXT NOT NULL DEFAULT 'NONE', details TEXT, lookup TEXT)"""
         )
         db.execSQL("CREATE INDEX events_ts ON events(ts)")
         db.execSQL("CREATE INDEX events_number ON events(number, ts)")
@@ -38,20 +38,33 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
                 created_at INTEGER NOT NULL, rule_name TEXT,
                 UNIQUE(type, pattern))"""
         )
-        for (r in Rules.defaults) {
-            db.insert("rules", null, ContentValues().apply {
-                put("name", r.name)
-                put("enabled", if (r.enabled) 1 else 0)
-                put("priority", r.priority)
-                put("mode", r.mode.name)
-                put("action", r.action.name)
-                put("conditions", Rules.conditionsToJson(r.conditions))
-            })
-        }
+        createLookups(db)
+        for (r in Rules.defaults) insertRule(db, r)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) canonicalizeLists(db)
+        if (oldVersion < 3) {
+            // v3: сведения о номере в журнале, кэш поиска, правило «Плохие отзывы» (dry-run).
+            db.execSQL("ALTER TABLE events ADD COLUMN lookup TEXT")
+            createLookups(db)
+            insertRule(db, Rules.reputationDefault)
+        }
+    }
+
+    private fun createLookups(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE lookups(number TEXT PRIMARY KEY, json TEXT NOT NULL, fetched_at INTEGER NOT NULL)")
+    }
+
+    private fun insertRule(db: SQLiteDatabase, r: com.blkdem.autoban.rules.Rule) {
+        db.insert("rules", null, ContentValues().apply {
+            put("name", r.name)
+            put("enabled", if (r.enabled) 1 else 0)
+            put("priority", r.priority)
+            put("mode", r.mode.name)
+            put("action", r.action.name)
+            put("conditions", Rules.conditionsToJson(r.conditions))
+        })
     }
 
     /** v2: записи списков в едином виде; появившиеся дубли удаляются (остаётся более ранняя). */
@@ -70,5 +83,5 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
         }
     }
 
-    companion object { const val VERSION = 2 }
+    companion object { const val VERSION = 3 }
 }

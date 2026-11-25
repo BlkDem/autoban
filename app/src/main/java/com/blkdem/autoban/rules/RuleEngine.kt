@@ -86,6 +86,23 @@ class RuleEngine {
         is Condition.Repeated -> call.number?.let { n ->
             ctx.recentCalls(n, call.timestamp - c.minutes * 60_000L) + 1 >= c.count
         } ?: false
+        is Condition.Reputation -> reputation(c, call.report)
+    }
+
+    private fun reputation(c: Condition.Reputation, r: com.blkdem.autoban.lookup.NumberReport?): Boolean {
+        if (r == null || !r.found || r.reviews == 0) return false
+        if (r.reviews < c.minReviews) return false
+        if (c.maxRating > 0 && (r.rating == null || r.rating > c.maxRating)) return false
+        if (c.category.isNotBlank()) {
+            val m = Mask(c.category)
+            if (r.categories.none { m.matches(it) }) return false
+        }
+        return true
+    }
+
+    /** Нужны ли правилам сведения о номере: есть ли включённые правила с условием репутации. */
+    fun needsReport(rules: List<Rule>, activeOnly: Boolean): Boolean = rules.any { r ->
+        r.enabled && (!activeOnly || r.mode == RuleMode.ACTIVE) && r.conditions.any { it is Condition.Reputation }
     }
 
     private fun inWindow(c: Condition.TimeWindow, ts: Long, zone: ZoneId): Boolean {

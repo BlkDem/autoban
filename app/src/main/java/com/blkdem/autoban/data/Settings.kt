@@ -22,6 +22,11 @@ class Settings(context: Context) {
         get() = prefs.getInt("retention_days", 90)
         set(v) { prefs.edit().putInt("retention_days", v).apply(); changed() }
 
+    /** Искать отзывы о номерах не из контактов (zvonili.com). */
+    var lookupEnabled: Boolean
+        get() = prefs.getBoolean("lookup", true)
+        set(v) { prefs.edit().putBoolean("lookup", v).apply(); changed() }
+
     var lastCleanup: Long
         get() = prefs.getLong("last_cleanup", 0)
         set(v) { prefs.edit().putLong("last_cleanup", v).apply() }

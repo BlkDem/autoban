@@ -95,7 +95,7 @@ fun TelegramCard(settings: TelegramSettings, onSaved: () -> Unit, onRetryFailed:
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(s.notifyRejected, { s = s.copy(notifyRejected = !s.notifyRejected) }, label = { Text("сброс и бан") })
                 FilterChip(s.notifyDryRun, { s = s.copy(notifyDryRun = !s.notifyDryRun) }, label = { Text("dry-run") })
-                FilterChip(s.notifyAllowed, { s = s.copy(notifyAllowed = !s.notifyAllowed) }, label = { Text("все пропущенные") })
+                FilterChip(s.notifyAllowed, { s = s.copy(notifyAllowed = !s.notifyAllowed) }, label = { Text("разрешённые звонки") })
                 FilterChip(s.silent, { s = s.copy(silent = !s.silent) }, label = { Text("без звука") })
                 FilterChip(s.commands, { s = s.copy(commands = !s.commands) }, label = { Text("кнопки и команды") })
             }

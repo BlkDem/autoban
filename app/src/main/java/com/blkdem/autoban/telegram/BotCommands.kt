@@ -11,6 +11,8 @@ sealed interface BotCommand {
     data class Ban(val pattern: String) : BotCommand
     data class Unban(val pattern: String) : BotCommand
     data class White(val pattern: String) : BotCommand
+    /** Пробить номер: отзывы, оператор, регион. */
+    data class Who(val number: String) : BotCommand
     data class Unknown(val text: String) : BotCommand
 
     companion object {
@@ -27,6 +29,7 @@ sealed interface BotCommand {
                 "/ban" -> pattern(arg)?.let(::Ban) ?: Unknown(t)
                 "/unban" -> pattern(arg)?.let(::Unban) ?: Unknown(t)
                 "/white" -> pattern(arg)?.let(::White) ?: Unknown(t)
+                "/who" -> PhoneNumbers.normalize(arg)?.takeIf { it.startsWith("+") }?.let(::Who) ?: Unknown(t)
                 else -> Unknown(t)
             }
         }
@@ -42,6 +45,7 @@ sealed interface BotCommand {
                 "ban" -> Ban(n)
                 "unban" -> Unban(n)
                 "white" -> White(n)
+                "who" -> Who(n)
                 else -> null
             }
         }
@@ -51,7 +55,8 @@ sealed interface BotCommand {
             "/last 10 — последние звонки\n" +
             "/ban &lt;номер или маска&gt; — в бан-лист\n" +
             "/unban &lt;номер&gt; — убрать из бан-листа\n" +
-            "/white &lt;номер&gt; — в белый список\n\n" +
+            "/white &lt;номер&gt; — в белый список\n" +
+            "/who &lt;номер&gt; — пробить номер по отзывам\n\n" +
             "Кнопки под сообщениями о звонках делают то же самое."
     }
 }

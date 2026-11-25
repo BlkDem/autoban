@@ -12,6 +12,8 @@ data class CallInfo(
     val subscriptionId: Int? = null,
     val simLabel: String? = null,
     val accountHandleId: String? = null,
+    /** Сведения о номере из отзывов, если успели их получить. */
+    val report: com.blkdem.autoban.lookup.NumberReport? = null,
 ) {
     enum class Presentation { PRESENTED, HIDDEN, UNKNOWN }
 

@@ -25,6 +25,8 @@ data class CallEvent(
     val tgStatus: TgStatus = TgStatus.NONE,
     /** Сырые поля Call.Details — для отладки. */
     val details: String? = null,
+    /** Сведения о номере из отзывов (см. [com.blkdem.autoban.lookup.NumberLookup]). */
+    val report: com.blkdem.autoban.lookup.NumberReport? = null,
 ) {
     enum class TgStatus { NONE, PENDING, SENT, FAILED }
 
@@ -44,6 +46,7 @@ data class CallEvent(
             dryRun = d.dryRunHits.takeIf { it.isNotEmpty() }?.joinToString("; ") { it.name },
             wouldAction = d.wouldAction,
             details = details,
+            report = info.report,
         )
     }
 }

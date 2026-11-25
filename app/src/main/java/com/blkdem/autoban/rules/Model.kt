@@ -70,6 +70,19 @@ sealed interface Condition {
     /** С этого номера это уже `count`-й звонок за последние `minutes` минут (включая текущий). */
     @Serializable @SerialName("repeat")
     data class Repeated(val count: Int = 2, val minutes: Int = 3) : Condition
+
+    /**
+     * Репутация номера по открытым отзывам (zvonili.com). Должно выполниться всё заданное:
+     * отзывов не меньше `minReviews`, оценка не выше `maxRating` (0 — не учитывать),
+     * хотя бы один тип номера совпадает с маской `category` (пусто — любой).
+     * Нет сведений о номере (скрыт, не найден, сайт не ответил) — условие не выполняется.
+     */
+    @Serializable @SerialName("reputation")
+    data class Reputation(
+        val minReviews: Int = 3,
+        val maxRating: Double = 2.0,
+        val category: String = "",
+    ) : Condition
 }
 
 enum class ListType { BLOCK, WHITE }
