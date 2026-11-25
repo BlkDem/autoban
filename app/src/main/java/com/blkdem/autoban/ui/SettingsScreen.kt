@@ -24,6 +24,9 @@ data class SystemStatus(
     val roleSupported: Boolean,
     val roleHeld: Boolean,
     val phoneStateGranted: Boolean,
+    val notificationAccess: Boolean = false,
+    val answerCalls: Boolean = false,
+    val callLog: Boolean = false,
 )
 
 @Composable

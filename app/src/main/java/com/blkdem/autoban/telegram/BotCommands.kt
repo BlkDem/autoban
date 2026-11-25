@@ -13,6 +13,8 @@ sealed interface BotCommand {
     data class White(val pattern: String) : BotCommand
     /** Пробить номер: отзывы, оператор, регион. */
     data class Who(val number: String) : BotCommand
+    /** Сбросить звонящий сейчас звонок (кнопка под сообщением о входящем). null — скрытый номер. */
+    data class Hang(val number: String?) : BotCommand
     data class Unknown(val text: String) : BotCommand
 
     companion object {
@@ -40,6 +42,7 @@ sealed interface BotCommand {
         /** callback_data кнопок: `ban:+79…`, `unban:+79…`, `white:+79…` (≤ 64 байт). */
         fun fromCallback(data: String): BotCommand? {
             val (op, num) = data.split(':', limit = 2).takeIf { it.size == 2 } ?: return null
+            if (op == "hang") return Hang(PhoneNumbers.normalize(num.takeIf { it != "-" }))
             val n = PhoneNumbers.normalize(num) ?: return null
             return when (op) {
                 "ban" -> Ban(n)

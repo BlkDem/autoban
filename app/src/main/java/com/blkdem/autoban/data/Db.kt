@@ -21,7 +21,8 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
                 caller_name TEXT, sim_slot INTEGER, sim_label TEXT,
                 action TEXT NOT NULL, source TEXT NOT NULL,
                 rule_id INTEGER, rule_name TEXT, dry_run TEXT, would_action TEXT NOT NULL,
-                tg_status TEXT NOT NULL DEFAULT 'NONE', details TEXT, lookup TEXT)"""
+                tg_status TEXT NOT NULL DEFAULT 'NONE', details TEXT, lookup TEXT,
+                outcome TEXT, tg_message_id INTEGER)"""
         )
         db.execSQL("CREATE INDEX events_ts ON events(ts)")
         db.execSQL("CREATE INDEX events_number ON events(number, ts)")
@@ -47,8 +48,38 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
         if (oldVersion < 3) {
             // v3: сведения о номере в журнале, кэш поиска, правило «Плохие отзывы» (dry-run).
             db.execSQL("ALTER TABLE events ADD COLUMN lookup TEXT")
+            db.execSQL("ALTER TABLE events ADD COLUMN outcome TEXT")
+            db.execSQL("ALTER TABLE events ADD COLUMN tg_message_id INTEGER")
             createLookups(db)
             insertRule(db, Rules.reputationDefault)
+        }
+        if (oldVersion < 4) {
+            // v4: исход звонка и сообщение в Telegram; правило «Ростелеком» — на любой SIM.
+            if (oldVersion >= 3) {
+                db.execSQL("ALTER TABLE events ADD COLUMN outcome TEXT")
+                db.execSQL("ALTER TABLE events ADD COLUMN tg_message_id INTEGER")
+            }
+            migrateRostelecom(db)
+        }
+    }
+
+    private fun migrateRostelecom(db: SQLiteDatabase) {
+        val rows = db.rawQuery("SELECT id, name, enabled, priority, mode, action, conditions FROM rules", null).use { c ->
+            generateSequence {
+                if (!c.moveToNext()) null else com.blkdem.autoban.rules.Rule(
+                    id = c.getLong(0), name = c.getString(1), enabled = c.getInt(2) == 1, priority = c.getInt(3),
+                    mode = com.blkdem.autoban.rules.RuleMode.valueOf(c.getString(4)),
+                    action = com.blkdem.autoban.rules.Action.valueOf(c.getString(5)),
+                    conditions = runCatching { Rules.conditionsFromJson(c.getString(6)) }.getOrDefault(emptyList()),
+                )
+            }.toList()
+        }
+        for (r in rows) {
+            val m = Rules.migrateRostelecom(r) ?: continue
+            db.update("rules", ContentValues().apply {
+                put("name", m.name)
+                put("conditions", Rules.conditionsToJson(m.conditions))
+            }, "id = ?", arrayOf(r.id.toString()))
         }
     }
 
@@ -83,5 +114,5 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
         }
     }
 
-    companion object { const val VERSION = 3 }
+    companion object { const val VERSION = 4 }
 }

@@ -20,7 +20,11 @@ import java.util.concurrent.TimeUnit
 /** Ставит события в очередь на отправку и планирует фоновую доставку. */
 class TelegramNotifier(private val context: Context, private val repo: Repository, private val settings: TelegramSettings) {
 
+    /** События, о которых сообщает сопровождение звонка (см. [com.blkdem.autoban.live.LiveCalls]). */
+    var handledElsewhere: (Long) -> Boolean = { false }
+
     fun onEvent(e: CallEvent) {
+        if (handledElsewhere(e.id)) return
         val s = settings.snapshot()
         if (!s.wants(e)) return
         repo.setTgStatus(listOf(e.id), CallEvent.TgStatus.PENDING)

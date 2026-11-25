@@ -27,8 +27,24 @@ data class CallEvent(
     val details: String? = null,
     /** Сведения о номере из отзывов (см. [com.blkdem.autoban.lookup.NumberLookup]). */
     val report: com.blkdem.autoban.lookup.NumberReport? = null,
+    /** Чем кончился пропущенный фильтром звонок (null — звонок сброшен фильтром или не отслеживался). */
+    val outcome: Outcome? = null,
+    /** Сообщение в Telegram о звонке — чтобы обновлять его, пока звонок идёт. */
+    val tgMessageId: Long? = null,
 ) {
     enum class TgStatus { NONE, PENDING, SENT, FAILED }
+
+    enum class Outcome {
+        /** Телефон звонит прямо сейчас. */
+        RINGING,
+        ANSWERED,
+        /** Не ответили (или отклонили в звонилке). */
+        MISSED,
+        /** Сброшен кнопкой в Telegram. */
+        HUNG_UP_BOT,
+        /** Сброшен по правилу, когда пришла подпись оператора. */
+        HUNG_UP_RULE,
+    }
 
     companion object {
         fun of(info: CallInfo, d: Decision, details: String?) = CallEvent(

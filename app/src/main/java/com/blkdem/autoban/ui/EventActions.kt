@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.blkdem.autoban.data.CallEvent
 import com.blkdem.autoban.data.Repository
 import com.blkdem.autoban.rules.Action
+import com.blkdem.autoban.rules.CallLabel
 import com.blkdem.autoban.rules.Condition
 import com.blkdem.autoban.rules.ListType
 import com.blkdem.autoban.rules.PhoneNumbers
@@ -60,12 +61,20 @@ fun EventActions(e: CallEvent, repo: Repository, onCreateRule: (Rule) -> Unit) {
     }
 }
 
-/** Черновик правила по звонку: та же SIM + то, чем звонок отличается (скрыт / имя / номер). Создаётся в dry-run. */
+/**
+ * Черновик правила по звонку — то, чем звонок отличается: скрытый номер (на той же SIM),
+ * маркировка (по организации), имя от сети или номер. SIM указывается только для скрытых номеров:
+ * остальные правила по умолчанию действуют на любой SIM. Создаётся в dry-run.
+ */
 fun ruleFromEvent(e: CallEvent): Rule {
+    val marking = CallLabel.parse(e.callerName)
     val conditions = buildList {
-        e.simSlot?.let { add(Condition.SimSlot(it)) }
         when {
-            e.number == null -> add(Condition.NumberHidden)
+            e.number == null -> {
+                e.simSlot?.let { add(Condition.SimSlot(it)) }
+                add(Condition.NumberHidden)
+            }
+            marking != null -> add(Condition.Marking(organization = "*${marking.organization}*"))
             !e.callerName.isNullOrBlank() -> add(Condition.CallerName("*${e.callerName.trim()}*"))
             else -> add(Condition.NumberMask(e.number))
         }

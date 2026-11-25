@@ -142,6 +142,8 @@ private fun AddConditionButton(onAdd: (Condition) -> Unit) {
                 "Время и дни" to Condition.TimeWindow(fromMinute = 9 * 60, toMinute = 21 * 60),
                 "Повторный звонок" to Condition.Repeated(2, 3),
                 "Репутация по отзывам" to Condition.Reputation(),
+                "Маркировка оператора" to Condition.Marking(),
+                "Звонок без маркировки" to Condition.Unmarked,
             ).forEach { (label, c) ->
                 DropdownMenuItem(text = { Text(label) }, onClick = { open = false; onAdd(c) })
             }
@@ -197,6 +199,28 @@ private fun ConditionCard(c: Condition, onChange: (Condition) -> Unit, onRemove:
                     NumberField("Звонок №", c.count, Modifier.weight(1f)) { onChange(c.copy(count = it.coerceAtLeast(2))) }
                     NumberField("За минут", c.minutes, Modifier.weight(1f)) { onChange(c.copy(minutes = it.coerceAtLeast(1))) }
                 }
+                is Condition.Marking -> {
+                    OutlinedTextField(
+                        c.organization, { onChange(c.copy(organization = it.trim())) }, label = { Text("Организация (маска)") },
+                        singleLine = true, isError = !Mask(c.organization).isValid, modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("Например: *ростелеком*  ·  *сбер*  ·  пусто — любая") },
+                    )
+                    OutlinedTextField(
+                        c.category, { onChange(c.copy(category = it.trim())) }, label = { Text("Категория (маска)") },
+                        singleLine = true, isError = !Mask(c.category).isValid, modifier = Modifier.fillMaxWidth(),
+                        supportingText = { Text("Например: *реклам*  ·  *связ*  ·  пусто — любая") },
+                    )
+                    Text(
+                        "Подпись оператора вида «Ростелеком: связь» или «PAO MTS: svyaz». Маски понимают и латиницу. " +
+                            "Подпись приходит, когда телефон уже звонит: звонок сбрасывается через секунду-две " +
+                            "(нужны «Доступ к уведомлениям» и «Управление звонками» в настройках).",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Condition.Unmarked -> Text(
+                    "Оператор подписал звонок «Звонок без маркировки» — звонит компания без договора маркировки.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 is Condition.Reputation -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumberField("Отзывов не меньше", c.minReviews, Modifier.weight(1f)) { onChange(c.copy(minReviews = it.coerceAtLeast(1))) }

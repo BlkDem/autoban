@@ -24,10 +24,16 @@ class RuleFromEventTest {
     }
 
     @Test fun byName() {
-        assertEquals(listOf(Condition.SimSlot(2), Condition.CallerName("*Ростелеком*")), ruleFromEvent(ev("+79123456789", "Ростелеком", 2)).conditions)
+        assertEquals(listOf(Condition.CallerName("*Ростелеком*")), ruleFromEvent(ev("+79123456789", "Ростелеком", 2)).conditions)
+        // Маркировка: правило по организации, на любой SIM.
+        assertEquals(
+            listOf(Condition.Marking(organization = "*Ростелеком*")),
+            ruleFromEvent(ev("+79309131503", "Ростелеком: связь", 1)).conditions,
+        )
     }
 
     @Test fun byNumberWithoutSim() {
         assertEquals(listOf(Condition.NumberMask("+79123456789")), ruleFromEvent(ev("+79123456789", null, null)).conditions)
+        assertEquals(listOf(Condition.NumberMask("+79123456789")), ruleFromEvent(ev("+79123456789", null, 2)).conditions)
     }
 }

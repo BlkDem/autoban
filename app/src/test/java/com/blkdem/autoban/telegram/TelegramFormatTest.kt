@@ -68,6 +68,18 @@ class TelegramFormatTest {
         assertEquals("14:12 📞 SIM2 <code>+7 912 345-67-89</code> ⚠️1.35/5 Мошенники", line)
     }
 
+    @Test fun liveOutcomeHeads() {
+        val base = ev(Action.ALLOW, name = "Ростелеком: связь").copy(source = Decision.Source.DEFAULT, ruleName = null)
+        fun head(e: CallEvent) = TelegramFormat.event(e, tz).lineSequence().first()
+        assertEquals("📞 <b>ЗВОНИТ</b> · SIM2", head(base.copy(outcome = CallEvent.Outcome.RINGING)))
+        assertEquals("📵 <b>НЕ ОТВЕЧЕН</b> · SIM2", head(base.copy(outcome = CallEvent.Outcome.MISSED)))
+        assertEquals("✅ <b>ПРИНЯТ</b> · SIM2", head(base.copy(outcome = CallEvent.Outcome.ANSWERED)))
+        assertEquals("⛔ <b>СБРОШЕН</b> из Telegram · SIM2", head(base.copy(action = Action.REJECT, outcome = CallEvent.Outcome.HUNG_UP_BOT)))
+        assertEquals("🚫 <b>БАН</b>, сброшен из Telegram · SIM2", head(base.copy(action = Action.BAN, outcome = CallEvent.Outcome.HUNG_UP_BOT)))
+        assertEquals("🚫 <b>БАН</b> по подписи · SIM2", head(base.copy(action = Action.BAN, outcome = CallEvent.Outcome.HUNG_UP_RULE)))
+        assertTrue(TelegramFormat.event(base.copy(outcome = CallEvent.Outcome.RINGING), tz).contains("«Ростелеком: связь»"))
+    }
+
     @Test fun whoReply() {
         val none = TelegramFormat.who("+79123456789", NumberReport("+79123456789", found = true, url = "https://zvonili.com/phone/9123456789"))
         assertEquals(

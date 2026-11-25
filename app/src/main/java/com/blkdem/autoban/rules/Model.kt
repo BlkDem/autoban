@@ -83,6 +83,17 @@ sealed interface Condition {
         val maxRating: Double = 2.0,
         val category: String = "",
     ) : Condition
+
+    /**
+     * Подпись оператора (маркировка 41-ФЗ) вида «Организация: категория».
+     * Маски по организации и категории; пустая маска — любая. Обе пустые — «звонок маркирован».
+     */
+    @Serializable @SerialName("marking")
+    data class Marking(val organization: String = "", val category: String = "") : Condition
+
+    /** Оператор подписал звонок как «Звонок без маркировки» (компания без договора маркировки). */
+    @Serializable @SerialName("unmarked")
+    data object Unmarked : Condition
 }
 
 enum class ListType { BLOCK, WHITE }

@@ -43,6 +43,8 @@ class BotCommandsTest {
         assertEquals(BotCommand.Ban("+79123456789"), BotCommand.fromCallback("ban:+79123456789"))
         assertEquals(BotCommand.Unban("+79123456789"), BotCommand.fromCallback("unban:89123456789"))
         assertEquals(BotCommand.White("+79123456789"), BotCommand.fromCallback("white:+79123456789"))
+        assertEquals(BotCommand.Hang("+79123456789"), BotCommand.fromCallback("hang:+79123456789"))
+        assertEquals(BotCommand.Hang(null), BotCommand.fromCallback("hang:-"))
         assertNull(BotCommand.fromCallback("drop:+79123456789"))
         assertNull(BotCommand.fromCallback("ban:"))
         assertNull(BotCommand.fromCallback("garbage"))
