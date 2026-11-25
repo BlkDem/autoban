@@ -100,6 +100,8 @@ fun EventRow(e: CallEvent, modifier: Modifier = Modifier) {
             Text(fmtShort(e.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("SIM${e.simSlot ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             e.callerName?.let { Text("«$it»", style = MaterialTheme.typography.bodySmall) }
+            e.outcome?.takeIf { it != com.blkdem.autoban.data.CallEvent.Outcome.RINGING || System.currentTimeMillis() - e.timestamp < 180_000 }
+                ?.let { Text(outcomeLabel(it), style = MaterialTheme.typography.bodySmall) }
         }
         e.report?.takeIf { it.found }?.let { r ->
             Text(r.icon + " " + r.summary(maxCategories = 2), style = MaterialTheme.typography.bodySmall, color = reportColor(r))

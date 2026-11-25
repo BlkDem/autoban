@@ -67,6 +67,7 @@ import com.blkdem.autoban.ui.RulesScreen
 import com.blkdem.autoban.ui.TesterDialog
 import com.blkdem.autoban.ui.JournalSettingsCard
 import com.blkdem.autoban.ui.LookupCard
+import com.blkdem.autoban.ui.LiveCard
 import com.blkdem.autoban.ui.ReportSection
 import com.blkdem.autoban.ui.StatusCard
 import com.blkdem.autoban.ui.TelegramCard
@@ -154,7 +155,22 @@ class MainActivity : ComponentActivity() {
         roleHeld = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
             getSystemService(RoleManager::class.java).isRoleHeld(RoleManager.ROLE_CALL_SCREENING),
         phoneStateGranted = granted(Manifest.permission.READ_PHONE_STATE),
+        notificationAccess = com.blkdem.autoban.live.LiveCalls.hasNotificationAccess(this),
+        answerCalls = granted(Manifest.permission.ANSWER_PHONE_CALLS),
+        callLog = granted(Manifest.permission.READ_CALL_LOG),
+        radioLog = com.blkdem.autoban.live.RadioLog.available(this),
     )
+
+    private fun copyGrantCommand() {
+        val cm = getSystemService(android.content.ClipboardManager::class.java)
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("adb", com.blkdem.autoban.live.RadioLog.GRANT_COMMAND))
+        toast("Команда скопирована — выполните её на компьютере с подключённым телефоном")
+    }
+
+    private fun openNotificationAccess() {
+        runCatching { startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+            .onFailure { toast("Откройте: Настройки → Уведомления → Доступ к уведомлениям") }
+    }
 
     private fun granted(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
 
@@ -231,6 +247,13 @@ class MainActivity : ComponentActivity() {
                             app.telegramSettings,
                             onSaved = { thread { app.telegram.schedule() } },
                             onRetryFailed = { thread { app.repository.retryFailedTg(); app.telegram.schedule() } },
+                        )
+                        LiveCard(
+                            status,
+                            onNotificationAccess = ::openNotificationAccess,
+                            onAnswerCalls = { permRequest.launch(Manifest.permission.ANSWER_PHONE_CALLS) },
+                            onCallLog = { permRequest.launch(Manifest.permission.READ_CALL_LOG) },
+                            onRadioLog = ::copyGrantCommand,
                         )
                         LookupCard(
                             enabled = remember(settingsChanges) { app.settings.lookupEnabled },

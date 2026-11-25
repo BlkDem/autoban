@@ -28,6 +28,9 @@ class Repository(context: Context) {
 
     private fun changed() { _changes.value = _changes.value + 1 }
 
+    /** Для «прочитать событие → изменить → записать» из разных потоков (поиск, подпись, бот). */
+    val eventLock = Any()
+
     // ---------- events ----------
 
     data class EventFilter(
@@ -56,7 +59,27 @@ class Repository(context: Context) {
         put("tg_status", e.tgStatus.name)
         put("details", e.details)
         put("lookup", e.report?.let(::reportToJson))
+        put("outcome", e.outcome?.name)
+        put("tg_message_id", e.tgMessageId)
     }).also { changed() }
+
+    /** Перезаписать изменяемые поля события. */
+    fun updateEvent(e: CallEvent) {
+        db.update("events", ContentValues().apply {
+            put("caller_name", e.callerName)
+            put("action", e.action.name)
+            put("source", e.source.name)
+            put("rule_id", e.ruleId)
+            put("rule_name", e.ruleName)
+            put("dry_run", e.dryRun)
+            put("would_action", e.wouldAction.name)
+            put("tg_status", e.tgStatus.name)
+            put("lookup", e.report?.let(::reportToJson))
+            put("outcome", e.outcome?.name)
+            put("tg_message_id", e.tgMessageId)
+        }, "id = ?", arrayOf(e.id.toString()))
+        changed()
+    }
 
     /** Дописать сведения о номере и пересчитанный dry-run (поиск закончился после решения). */
     fun updateEventReport(id: Long, report: NumberReport, dryRun: String?, wouldAction: Action) {
@@ -157,6 +180,8 @@ class Repository(context: Context) {
         tgStatus = CallEvent.TgStatus.valueOf(str("tg_status")!!),
         details = str("details"),
         report = reportFromJson(str("lookup")),
+        outcome = str("outcome")?.let { runCatching { CallEvent.Outcome.valueOf(it) }.getOrNull() },
+        tgMessageId = long("tg_message_id"),
     )
 
     data class Stats(val total: Int, val allowed: Int, val rejected: Int, val banned: Int, val dryRun: Int, val sim1: Int, val sim2: Int)

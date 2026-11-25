@@ -25,6 +25,9 @@ class ScreeningProcessor(
 
     /** Список слушателей, которым передаётся записанное событие (Telegram и т.п.). */
     private val listeners = mutableListOf<(CallEvent) -> Unit>()
+
+    /** Сопровождение пропущенных звонков (подпись оператора, сброс из Telegram). */
+    var live: com.blkdem.autoban.live.LiveCalls? = null
     fun addListener(l: (CallEvent) -> Unit) { synchronized(listeners) { listeners += l } }
 
     fun context(): EvalContext = EvalContext(
@@ -70,13 +73,16 @@ class ScreeningProcessor(
         }
         val saved = event.copy(id = id)
         val n = lookupFor(info)
-        if (info.report == null && n != null) {
+        val lookupPending = info.report == null && n != null
+        // Звонок пропущен — телефон сейчас зазвонит: дальше его ведёт сопровождение (и Telegram тоже).
+        val liveTelegram = decision.action == Action.ALLOW && live?.start(saved, info, lookupPending) == true
+        if (lookupPending) {
             // Сначала узнаём о номере, потом сообщаем: в Telegram уйдёт уже со сводкой.
-            lookup.lookupAsync(n) { report ->
+            lookup.lookupAsync(n!!) { report ->
                 val updated = report?.let { attachReport(saved, info, decision, it) } ?: saved
-                notifyListeners(updated)
+                if (liveTelegram) live?.onReport(saved.id) else notifyListeners(updated)
             }
-        } else {
+        } else if (!liveTelegram) {
             notifyListeners(saved)
         }
         cleanupIfNeeded()
@@ -85,7 +91,16 @@ class ScreeningProcessor(
 
     /** Записать сведения о номере в событие и пересчитать dry-run с их учётом. Само решение не меняется. */
     private fun attachReport(e: CallEvent, info: CallInfo, decision: Decision, report: NumberReport): CallEvent {
-        val again = engine.evaluate(info.copy(report = report), context())
+        synchronized(repo.eventLock) {
+        // Подпись оператора могла прийти раньше отзывов — учитываем и её.
+        val current = repo.event(e.id)
+        if (current != null && current.action != decision.action) {
+            // Звонок уже сбросили (по подписи или из Telegram) — только дописываем сводку.
+            repo.updateEvent(current.copy(report = report))
+            return repo.event(e.id) ?: current
+        }
+        val label = current?.callerName ?: info.callerName
+        val again = engine.evaluate(info.copy(report = report, callerName = label), context())
         val hits = again.dryRunHits.map { it.name }.toMutableList()
         val late = again.source == Decision.Source.RULE && decision.source != Decision.Source.RULE &&
             decision.source != Decision.Source.BLOCKLIST && decision.source != Decision.Source.WHITELIST
@@ -98,6 +113,7 @@ class ScreeningProcessor(
         }
         repo.updateEventReport(e.id, report, dryRun, would)
         return repo.event(e.id) ?: e.copy(report = report, dryRun = dryRun, wouldAction = would)
+        }
     }
 
     private fun notifyListeners(e: CallEvent) {

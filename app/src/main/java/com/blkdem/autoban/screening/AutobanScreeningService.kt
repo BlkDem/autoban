@@ -7,6 +7,7 @@ import android.telecom.CallScreeningService
 import android.telecom.TelecomManager
 import android.util.Log
 import com.blkdem.autoban.AutobanApp
+import com.blkdem.autoban.live.RadioLog
 import com.blkdem.autoban.rules.CallInfo
 import com.blkdem.autoban.rules.Decision
 import java.util.concurrent.Executors
@@ -31,6 +32,9 @@ class AutobanScreeningService : CallScreeningService() {
             val app = AutobanApp.from(this)
             val sim = SimResolver(this).resolve(details.accountHandle)
             var info = extract(details, sim)
+            if (info.callerName == null) radioLabel(started)?.let {
+                info = info.copy(callerName = it, callerNamePresentation = CallInfo.Presentation.PRESENTED)
+            }
             val budget = RESPONSE_BUDGET_MS - (SystemClock.elapsedRealtime() - started)
             info = info.copy(report = app.processor.reportBeforeDecision(info, budget))
             val decision = app.processor.decide(info)
@@ -45,6 +49,23 @@ class AutobanScreeningService : CallScreeningService() {
         } catch (t: Throwable) {
             Log.e(TAG, "screening failed", t)
             if (!responded) runCatching { respondToCall(details, CallResponse.Builder().build()) }
+        }
+    }
+
+    /**
+     * Android 10 не передаёт фильтру подпись оператора, но Samsung пишет её в системный лог раньше,
+     * чем звонок приходит к нам. Если подписи пока нет — чуть подождём: у звонка без подписи ждём зря, но недолго.
+     */
+    private fun radioLabel(started: Long): String? {
+        if (!RadioLog.available(this)) return null
+        val since = System.currentTimeMillis() - RADIO_LOOKBACK_MS
+        while (true) {
+            RadioLog.label(this, since)?.let {
+                Log.i(TAG, "radio label «$it» in ${SystemClock.elapsedRealtime() - started}ms")
+                return it
+            }
+            if (SystemClock.elapsedRealtime() - started > RADIO_WAIT_MS) return null
+            Thread.sleep(200)
         }
     }
 
@@ -97,6 +118,9 @@ class AutobanScreeningService : CallScreeningService() {
         private const val TAG = "Autoban"
         /** Система ждёт ответа ~5 секунд; оставляем запас. */
         private const val RESPONSE_BUDGET_MS = 4000L
+        /** Подпись пишется в лог при приходе звонка — за доли секунды до фильтра. */
+        private const val RADIO_LOOKBACK_MS = 3000L
+        private const val RADIO_WAIT_MS = 800L
         private val executor = Executors.newSingleThreadExecutor()
     }
 }

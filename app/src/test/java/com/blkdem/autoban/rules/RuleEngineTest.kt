@@ -63,7 +63,12 @@ class RuleEngineTest {
     @Test fun rule2_rostelecomOnSim2_banned() {
         val d = engine.evaluate(call(sim = 2, name = "Ростелеком"), ctx())
         assertEquals(Action.BAN, d.action)
-        assertEquals("Маркированные на SIM2", d.ruleName)
+        assertEquals(Rules.ROSTELECOM_NAME, d.ruleName)
+    }
+
+    @Test fun rule2_operatorMarking_banned() {
+        assertEquals(Action.BAN, engine.evaluate(call(sim = 1, name = "Ростелеком: связь"), ctx()).action)
+        assertEquals(Action.BAN, engine.evaluate(call(sim = 1, name = "PAO Rostelekom: svyaz"), ctx()).action)
     }
 
     @Test fun rule2_otherNameOrNoName_allowed() {
@@ -71,8 +76,9 @@ class RuleEngineTest {
         assertEquals(Action.ALLOW, engine.evaluate(call(sim = 2, name = null), ctx()).action)
     }
 
-    @Test fun rule2_rostelecomOnSim1_allowed() {
-        assertEquals(Action.ALLOW, engine.evaluate(call(sim = 1, name = "Ростелеком"), ctx()).action)
+    @Test fun rule2_rostelecomOnAnySim_banned() {
+        assertEquals(Action.BAN, engine.evaluate(call(sim = 1, name = "Ростелеком"), ctx()).action)
+        assertEquals(Action.BAN, engine.evaluate(call(sim = null, name = "Ростелеком"), ctx()).action)
     }
 
     // --- списки и порядок ---

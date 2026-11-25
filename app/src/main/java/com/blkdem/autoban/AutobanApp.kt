@@ -16,8 +16,13 @@ class AutobanApp : Application() {
     val telegramSettings by lazy { TelegramSettings(settings) }
     val telegram by lazy { TelegramNotifier(this, repository, telegramSettings) }
     val lookup by lazy { NumberLookup(repository) }
+    val live by lazy { com.blkdem.autoban.live.LiveCalls(this) }
     val processor by lazy {
-        ScreeningProcessor(this, repository, settings, lookup).also { p -> p.addListener { telegram.onEvent(it) } }
+        ScreeningProcessor(this, repository, settings, lookup).also { p ->
+            p.addListener { telegram.onEvent(it) }
+            p.live = live
+            telegram.handledElsewhere = live::handles
+        }
     }
 
     companion object {

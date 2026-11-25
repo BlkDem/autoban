@@ -14,7 +14,16 @@ object TelegramFormat {
 
     fun escape(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    private fun head(e: CallEvent): String = when {
+    private fun head(e: CallEvent): String = when (e.outcome) {
+        CallEvent.Outcome.RINGING -> "📞 <b>ЗВОНИТ</b>"
+        CallEvent.Outcome.HUNG_UP_BOT -> if (e.action == Action.BAN) "🚫 <b>БАН</b>, сброшен из Telegram" else "⛔ <b>СБРОШЕН</b> из Telegram"
+        CallEvent.Outcome.HUNG_UP_RULE -> if (e.action == Action.BAN) "🚫 <b>БАН</b> по подписи" else "⛔ <b>СБРОС</b> по подписи"
+        CallEvent.Outcome.ANSWERED -> "✅ <b>ПРИНЯТ</b>"
+        CallEvent.Outcome.MISSED -> "📵 <b>НЕ ОТВЕЧЕН</b>"
+        null -> headByAction(e)
+    }
+
+    private fun headByAction(e: CallEvent): String = when {
         e.action == Action.BAN -> "🚫 <b>БАН</b>"
         e.action == Action.REJECT -> "⛔ <b>СБРОС</b>"
         e.dryRun != null -> "🧪 <b>DRY-RUN</b>"

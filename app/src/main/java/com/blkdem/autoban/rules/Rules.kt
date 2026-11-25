@@ -33,14 +33,29 @@ object Rules {
             action = Action.REJECT,
         ),
         Rule(
-            name = "Маркированные на SIM2",
+            name = ROSTELECOM_NAME,
             priority = 20,
             mode = RuleMode.DRY_RUN,
-            conditions = listOf(Condition.SimSlot(2), Condition.NumberPresented, Condition.CallerName("*ростелеком*")),
+            conditions = listOf(Condition.NumberPresented, Condition.CallerName("*ростелеком*")),
             action = Action.BAN,
         ),
         reputationDefault,
     )
+
+    const val ROSTELECOM_NAME = "Маркировка «Ростелеком»"
+
+    /**
+     * v4: правило «Ростелеком» действует на любой SIM (раньше было только SIM2).
+     * Возвращает обновлённое правило или null, если это не оно / его уже меняли.
+     */
+    fun migrateRostelecom(r: Rule): Rule? {
+        val c = r.conditions
+        if (Condition.SimSlot(2) !in c || c.none { it is Condition.CallerName && it.mask == "*ростелеком*" }) return null
+        return r.copy(
+            name = if (r.name == "Маркированные на SIM2") ROSTELECOM_NAME else r.name,
+            conditions = c - Condition.SimSlot(2),
+        )
+    }
 
     /** Плохие отзывы о номере. В dry-run звонок не задерживает: сведения дописываются после решения. */
     val reputationDefault get() = Rule(
@@ -68,6 +83,14 @@ object Rules {
             if (c.maxRating > 0) add("оценка ≤ ${com.blkdem.autoban.lookup.NumberReport.fmtRating(c.maxRating)}")
             if (c.category.isNotBlank()) add("тип ~ «${c.category}»")
         }.joinToString(", ", prefix = "репутация: ")
+        is Condition.Marking -> when {
+            c.organization.isBlank() && c.category.isBlank() -> "звонок маркирован"
+            else -> buildList {
+                if (c.organization.isNotBlank()) add("организация ~ «${c.organization}»")
+                if (c.category.isNotBlank()) add("категория ~ «${c.category}»")
+            }.joinToString(", ", prefix = "маркировка: ")
+        }
+        Condition.Unmarked -> "звонок без маркировки"
     }
 
     fun describe(a: Action): String = when (a) {

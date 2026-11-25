@@ -40,16 +40,37 @@ class TelegramClient(
 
     data class Update(val id: Long, val chatId: Long?, val text: String?, val callbackId: String?, val callbackData: String?)
 
-    fun sendMessage(chatId: String, html: String, silent: Boolean = false, buttons: List<Button> = emptyList()) {
-        call("sendMessage", messageBody(chatId, html, silent, buttons))
+    /** Отправить сообщение; возвращает message_id. */
+    fun sendMessage(chatId: String, html: String, silent: Boolean = false, buttons: List<Button> = emptyList()): Long {
+        val msg = call("sendMessage", messageBody(chatId, html, silent, buttons)) as? JsonObject
+        return msg?.get("message_id")?.jsonPrimitive?.long ?: 0
     }
 
-    /** Новые сообщения и нажатия кнопок начиная с offset. */
-    fun updates(offset: Long): List<Update> {
+    /** Заменить текст и кнопки сообщения. «Не изменилось» ошибкой не считается. */
+    fun editMessage(chatId: String, messageId: Long, html: String, buttons: List<Button> = emptyList()) {
+        try {
+            call("editMessageText", buildJsonObject {
+                put("chat_id", chatId)
+                put("message_id", messageId)
+                put("text", html)
+                put("parse_mode", "HTML")
+                put("disable_web_page_preview", true)
+                put("reply_markup", keyboard(buttons))
+            })
+        } catch (e: TelegramException) {
+            if (e.message?.contains("not modified") != true) throw e
+        }
+    }
+
+    /**
+     * Новые сообщения и нажатия кнопок начиная с offset. [timeoutSec] > 0 — длинный опрос:
+     * Telegram держит запрос, пока не появится обновление (так кнопка срабатывает за секунду).
+     */
+    fun updates(offset: Long, timeoutSec: Int = 0): List<Update> {
         val result = call("getUpdates", buildJsonObject {
             put("offset", offset)
             put("limit", 100)
-            put("timeout", 0)
+            put("timeout", timeoutSec)
             put("allowed_updates", JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive("message"), kotlinx.serialization.json.JsonPrimitive("callback_query"))))
         }) as? JsonArray ?: return emptyList()
         return result.map { el ->
@@ -91,13 +112,14 @@ class TelegramClient(
             put("parse_mode", "HTML")
             put("disable_web_page_preview", true)
             put("disable_notification", silent)
-            if (buttons.isNotEmpty()) {
-                put("reply_markup", buildJsonObject {
-                    put("inline_keyboard", JsonArray(listOf(JsonArray(buttons.map { b ->
-                        buildJsonObject { put("text", b.text); put("callback_data", b.data) }
-                    }))))
-                })
-            }
+            if (buttons.isNotEmpty()) put("reply_markup", keyboard(buttons))
+        }
+
+        /** Кнопки в один ряд. Пустой список — убрать кнопки. */
+        fun keyboard(buttons: List<Button>): JsonObject = buildJsonObject {
+            put("inline_keyboard", JsonArray(if (buttons.isEmpty()) emptyList() else listOf(JsonArray(buttons.map { b ->
+                buildJsonObject { put("text", b.text); put("callback_data", b.data) }
+            }))))
         }
     }
 

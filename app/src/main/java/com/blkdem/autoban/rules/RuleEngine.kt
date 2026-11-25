@@ -23,7 +23,7 @@ data class Decision(
     /** Правила в режиме DRY_RUN, которые сработали бы. */
     val dryRunHits: List<Rule> = emptyList(),
 ) {
-    enum class Source { DEFAULT, WHITELIST, BLOCKLIST, RULE, DISABLED }
+    enum class Source { DEFAULT, WHITELIST, BLOCKLIST, RULE, DISABLED, MANUAL }
 
     val rejects: Boolean get() = action != Action.ALLOW
 
@@ -87,6 +87,11 @@ class RuleEngine {
             ctx.recentCalls(n, call.timestamp - c.minutes * 60_000L) + 1 >= c.count
         } ?: false
         is Condition.Reputation -> reputation(c, call.report)
+        is Condition.Marking -> CallLabel.parse(call.callerName)?.let { m ->
+            (c.organization.isBlank() || Mask(c.organization).matches(m.organization)) &&
+                (c.category.isBlank() || Mask(c.category).matches(m.category))
+        } ?: false
+        Condition.Unmarked -> CallLabel.isUnmarked(call.callerName)
     }
 
     private fun reputation(c: Condition.Reputation, r: com.blkdem.autoban.lookup.NumberReport?): Boolean {

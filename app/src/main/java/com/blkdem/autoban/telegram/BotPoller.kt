@@ -52,6 +52,16 @@ object BotPoller {
         )
     }
 
+    /** Кнопки под сообщением о звонке, который звонит прямо сейчас: сбросить, бан + сброс, белый список. */
+    fun liveButtons(e: CallEvent): List<TelegramClient.Button> {
+        val n = e.number ?: return listOf(TelegramClient.Button("⛔ Сбросить", "hang:-"))
+        return listOf(
+            TelegramClient.Button("⛔ Сбросить", "hang:$n"),
+            TelegramClient.Button("🚫 Бан", "ban:$n"),
+            TelegramClient.Button("✅ Белый", "white:$n"),
+        )
+    }
+
     /** Кнопки под сообщением о звонке. */
     fun buttonsFor(e: CallEvent): List<TelegramClient.Button> {
         val n = e.number ?: return emptyList()
@@ -62,30 +72,44 @@ object BotPoller {
         )
     }
 
+    /** getUpdates с одним offset из двух мест сразу (опрос по расписанию и во время звонка) даёт 409 — по очереди. */
+    private val pollLock = Any()
+
+    /**
+     * Забрать и выполнить команды бота. [timeoutSec] > 0 — длинный опрос (во время звонка).
+     * Возвращает false, если опрос выключен в настройках.
+     */
+    fun pollOnce(app: AutobanApp, timeoutSec: Int = 0): Boolean = synchronized(pollLock) {
+        val ts = app.telegramSettings
+        val s = ts.snapshot()
+        if (!s.enabled || !s.configured || !s.commands) return false
+        val client = s.client()
+        for (u in client.updates(ts.offset, timeoutSec)) {
+            ts.offset = u.id + 1
+            if (u.chatId?.toString() != s.chatId) continue // чужие чаты игнорируем
+            val cmd = when {
+                u.callbackData != null -> BotCommand.fromCallback(u.callbackData)
+                u.text != null -> BotCommand.parse(u.text)
+                else -> null
+            } ?: continue
+            val reply = when (cmd) {
+                is BotCommand.Who -> TelegramFormat.who(cmd.number, app.processor.report(cmd.number))
+                // Кнопки под входящим: сначала — звонок, который звонит прямо сейчас.
+                is BotCommand.Hang, is BotCommand.Ban -> app.live.onBotCommand(cmd) ?: execute(app.repository, cmd)
+                else -> execute(app.repository, cmd)
+            }
+            if (u.callbackId != null) {
+                runCatching { client.answerCallback(u.callbackId, reply.replace(Regex("<[^>]+>"), "").take(190)) }
+            }
+            client.sendMessage(s.chatId, reply, silent = true)
+        }
+        true
+    }
+
     class PollWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
         override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-            val app = AutobanApp.from(applicationContext)
-            val ts = app.telegramSettings
-            val s = ts.snapshot()
-            if (!s.enabled || !s.configured || !s.commands) return@withContext Result.success()
-            val client = s.client()
             try {
-                val updates = client.updates(ts.offset)
-                for (u in updates) {
-                    ts.offset = u.id + 1
-                    if (u.chatId?.toString() != s.chatId) continue // чужие чаты игнорируем
-                    val cmd = when {
-                        u.callbackData != null -> BotCommand.fromCallback(u.callbackData)
-                        u.text != null -> BotCommand.parse(u.text)
-                        else -> null
-                    } ?: continue
-                    val reply = if (cmd is BotCommand.Who) TelegramFormat.who(cmd.number, app.processor.report(cmd.number))
-                        else execute(app.repository, cmd)
-                    if (u.callbackId != null) {
-                        runCatching { client.answerCallback(u.callbackId, reply.replace(Regex("<[^>]+>"), "").take(190)) }
-                    }
-                    client.sendMessage(s.chatId, reply, silent = true)
-                }
+                pollOnce(AutobanApp.from(applicationContext))
                 Result.success()
             } catch (e: TelegramClient.TelegramException) {
                 Log.w(TAG, "bot poll failed: ${e.message}")
@@ -123,6 +147,7 @@ object BotPoller {
             "✅ <code>${TelegramFormat.escape(show(cmd.pattern))}</code> — в белом списке (проверяется раньше бан-листа)"
         }
         is BotCommand.Who -> TelegramFormat.who(cmd.number, null)
+        is BotCommand.Hang -> "Звонок уже завершён."
         is BotCommand.Unknown -> "Не понял: ${TelegramFormat.escape(cmd.text)}\n\n" + BotCommand.HELP
     }
 

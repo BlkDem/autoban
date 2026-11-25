@@ -34,6 +34,7 @@ fun EventDialog(
                 Line("Как передан", e.presentation.name)
                 Line("Имя от сети", e.callerName ?: "—")
                 Line("Решение", actionLabel(e.action) + " · " + e.source.name)
+                e.outcome?.let { Line("Звонок", outcomeLabel(it)) }
                 e.ruleName?.let { Line("Правило", it) }
                 e.dryRun?.let { Line("Dry-run", "$it → ${actionLabel(e.wouldAction)}") }
                 Line("Telegram", e.tgStatus.name)
