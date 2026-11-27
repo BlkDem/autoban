@@ -65,7 +65,8 @@ class ScreeningProcessor(
     fun report(number: String, force: Boolean = false): NumberReport? = lookup.lookup(number, 15_000, force)
 
     fun record(info: CallInfo, decision: Decision, details: String?): CallEvent {
-        val event = CallEvent.of(info, decision, details)
+        // Имя из контактов — для сообщения и журнала (фильтр Android обычно контакты не присылает, но бывает).
+        val event = CallEvent.of(info, decision, details).copy(contactName = com.blkdem.autoban.live.Contacts.name(context, info.number))
         val id = repo.insertEvent(event)
         val number = info.number
         if (decision.action == Action.BAN && decision.source == Decision.Source.RULE && number != null) {

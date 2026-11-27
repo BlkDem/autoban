@@ -32,7 +32,8 @@ fun EventDialog(
                 Line("SIM", "SIM${e.simSlot ?: "?"}" + (e.simLabel?.let { " · $it" } ?: ""))
                 Line("Номер", e.rawNumber ?: "—")
                 Line("Как передан", e.presentation.name)
-                Line("Имя от сети", e.callerName ?: "—")
+                e.contactName?.let { Line("Контакт", it) }
+                Line("Подпись (маркировка)", e.callerName?.let { n -> n + (e.labelSource?.let { " · ${it.title}" } ?: "") } ?: "—")
                 Line("Решение", actionLabel(e.action) + " · " + e.source.name)
                 e.outcome?.let { Line("Звонок", outcomeLabel(it)) }
                 e.ruleName?.let { Line("Правило", it) }

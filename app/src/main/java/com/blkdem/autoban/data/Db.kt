@@ -22,7 +22,7 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
                 action TEXT NOT NULL, source TEXT NOT NULL,
                 rule_id INTEGER, rule_name TEXT, dry_run TEXT, would_action TEXT NOT NULL,
                 tg_status TEXT NOT NULL DEFAULT 'NONE', details TEXT, lookup TEXT,
-                outcome TEXT, tg_message_id INTEGER)"""
+                outcome TEXT, tg_message_id INTEGER, label_src TEXT, contact TEXT)"""
         )
         db.execSQL("CREATE INDEX events_ts ON events(ts)")
         db.execSQL("CREATE INDEX events_number ON events(number, ts)")
@@ -60,6 +60,11 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
                 db.execSQL("ALTER TABLE events ADD COLUMN tg_message_id INTEGER")
             }
             migrateRostelecom(db)
+        }
+        if (oldVersion < 5) {
+            // v5: откуда взята подпись, имя контакта (определитель номера).
+            db.execSQL("ALTER TABLE events ADD COLUMN label_src TEXT")
+            db.execSQL("ALTER TABLE events ADD COLUMN contact TEXT")
         }
     }
 
@@ -114,5 +119,5 @@ class Db(context: Context) : SQLiteOpenHelper(context, "autoban.db", null, VERSI
         }
     }
 
-    companion object { const val VERSION = 4 }
+    companion object { const val VERSION = 5 }
 }

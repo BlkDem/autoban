@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { resumeTick++ }
     private val permRequest =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { resumeTick++ }
+    private val permsRequest =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { resumeTick++ }
 
     private val app get() = AutobanApp.from(this)
 
@@ -247,6 +249,7 @@ class MainActivity : ComponentActivity() {
                             app.telegramSettings,
                             onSaved = { thread { app.telegram.schedule() } },
                             onRetryFailed = { thread { app.repository.retryFailedTg(); app.telegram.schedule() } },
+                            onNeedPermissions = { permsRequest.launch(it) },
                         )
                         LiveCard(
                             status,

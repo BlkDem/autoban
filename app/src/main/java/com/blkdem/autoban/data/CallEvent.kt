@@ -31,6 +31,10 @@ data class CallEvent(
     val outcome: Outcome? = null,
     /** Сообщение в Telegram о звонке — чтобы обновлять его, пока звонок идёт. */
     val tgMessageId: Long? = null,
+    /** Откуда взята подпись [callerName]. */
+    val labelSource: CallInfo.LabelSource? = null,
+    /** Имя из контактов телефона. */
+    val contactName: String? = null,
 ) {
     enum class TgStatus { NONE, PENDING, SENT, FAILED }
 
@@ -63,6 +67,7 @@ data class CallEvent(
             wouldAction = d.wouldAction,
             details = details,
             report = info.report,
+            labelSource = info.callerNameSource.takeIf { info.callerName != null },
         )
     }
 }

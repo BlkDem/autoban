@@ -66,7 +66,7 @@ class TelegramNotifier(private val context: Context, private val repo: Repositor
                 } else {
                     for (e in pending) {
                         val buttons = if (s.commands) BotPoller.buttonsFor(e) else emptyList()
-                        client.sendMessage(s.chatId, TelegramFormat.event(e), s.silent, buttons)
+                        client.sendMessage(s.chatId, TelegramFormat.event(e, extras(repo, e)), s.silent, buttons)
                         repo.setTgStatus(listOf(e.id), CallEvent.TgStatus.SENT)
                     }
                 }
@@ -86,6 +86,18 @@ class TelegramNotifier(private val context: Context, private val repo: Repositor
     }
 
     companion object {
+        /** История звонков с номера и записи списков — для подробного сообщения. */
+        fun extras(repo: Repository, e: CallEvent): TelegramFormat.Extras {
+            val n = e.number ?: return TelegramFormat.Extras()
+            val (count, last) = repo.previousCalls(n, e.timestamp)
+            return TelegramFormat.Extras(
+                previousCalls = count,
+                lastCall = last,
+                blocked = repo.listEntryFor(com.blkdem.autoban.rules.ListType.BLOCK, n),
+                white = repo.listEntryFor(com.blkdem.autoban.rules.ListType.WHITE, n),
+            )
+        }
+
         private const val TAG = "Autoban"
         private const val WORK_INSTANT = "tg-instant"
         private const val WORK_DIGEST = "tg-digest"

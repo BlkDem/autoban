@@ -37,7 +37,18 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TelegramCard(settings: TelegramSettings, onSaved: () -> Unit, onRetryFailed: () -> Unit) {
+fun TelegramCard(
+    settings: TelegramSettings,
+    onSaved: () -> Unit,
+    onRetryFailed: () -> Unit,
+    /** Запросить недостающие разрешения (определителю — контакты и журнал вызовов, SMS — приём SMS). */
+    onNeedPermissions: (Array<String>) -> Unit = {},
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun ask(vararg perms: String) {
+        val missing = perms.filter { context.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) onNeedPermissions(missing.toTypedArray())
+    }
     val initial = remember { settings.snapshot() }
     var s by remember { mutableStateOf(initial) }
     var token by remember { mutableStateOf("") }
@@ -98,6 +109,34 @@ fun TelegramCard(settings: TelegramSettings, onSaved: () -> Unit, onRetryFailed:
                 FilterChip(s.notifyAllowed, { s = s.copy(notifyAllowed = !s.notifyAllowed) }, label = { Text("разрешённые звонки") })
                 FilterChip(s.silent, { s = s.copy(silent = !s.silent) }, label = { Text("без звука") })
                 FilterChip(s.commands, { s = s.copy(commands = !s.commands) }, label = { Text("кнопки и команды") })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Определитель номера", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Сообщение о каждом входящем сразу, пока телефон звонит, — с кнопками «Сбросить» и «Бан». " +
+                            "Звонки от контактов тоже (с именем из контактов).",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(s.callerId, {
+                    s = s.copy(callerId = it)
+                    if (it) ask(android.Manifest.permission.READ_PHONE_STATE, android.Manifest.permission.READ_CALL_LOG, android.Manifest.permission.READ_CONTACTS)
+                })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Пересылать SMS", style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        "Входящие SMS уходят в чат с ботом — включая коды подтверждения из банков. " +
+                            "Telegram хранит их у себя: включайте, только если доступ к вашему Telegram надёжно защищён.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(s.forwardSms, {
+                    s = s.copy(forwardSms = it)
+                    if (it) ask(android.Manifest.permission.RECEIVE_SMS, android.Manifest.permission.READ_PHONE_STATE, android.Manifest.permission.READ_CONTACTS)
+                })
             }
             Text("Как отправлять", style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

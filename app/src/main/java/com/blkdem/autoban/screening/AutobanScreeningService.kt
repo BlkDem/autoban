@@ -23,6 +23,7 @@ class AutobanScreeningService : CallScreeningService() {
         }
         // Решение принимаем вне главного потока: на ответ у нас ~5 секунд.
         val started = SystemClock.elapsedRealtime()
+        AutobanApp.from(this).live.onScreening(details.handle?.schemeSpecificPart)
         executor.execute { screen(details, started) }
     }
 
@@ -33,7 +34,7 @@ class AutobanScreeningService : CallScreeningService() {
             val sim = SimResolver(this).resolve(details.accountHandle)
             var info = extract(details, sim)
             if (info.callerName == null) radioLabel(started)?.let {
-                info = info.copy(callerName = it, callerNamePresentation = CallInfo.Presentation.PRESENTED)
+                info = info.copy(callerName = it, callerNamePresentation = CallInfo.Presentation.PRESENTED, callerNameSource = CallInfo.LabelSource.RADIO_LOG)
             }
             val budget = RESPONSE_BUDGET_MS - (SystemClock.elapsedRealtime() - started)
             info = info.copy(report = app.processor.reportBeforeDecision(info, budget))
@@ -88,6 +89,7 @@ class AutobanScreeningService : CallScreeningService() {
             presentation = presentation(d.handlePresentation, number),
             callerName = d.callerDisplayName?.takeIf { it.isNotBlank() },
             callerNamePresentation = presentation(d.callerDisplayNamePresentation, d.callerDisplayName),
+            callerNameSource = CallInfo.LabelSource.NETWORK,
             simSlot = sim?.slot,
             subscriptionId = sim?.subscriptionId,
             simLabel = sim?.label,

@@ -18,6 +18,7 @@ import com.blkdem.autoban.telegram.BotCommand
 import com.blkdem.autoban.telegram.BotPoller
 import com.blkdem.autoban.telegram.TelegramClient
 import com.blkdem.autoban.telegram.TelegramFormat
+import com.blkdem.autoban.telegram.TelegramNotifier
 import java.util.concurrent.Executors
 
 /**
@@ -31,7 +32,12 @@ import java.util.concurrent.Executors
  */
 class LiveCalls(private val app: AutobanApp) {
 
-    private class Session(val eventId: Long, val info: CallInfo, val started: Long, lookupPending: Boolean) {
+    /** [contact] — звонок, который фильтр не проверял (номер из контактов): правил и подписи для него нет. */
+    private class Session(
+        val eventId: Long, val info: CallInfo, val started: Long, lookupPending: Boolean, val contact: Boolean = false,
+        /** Определитель: сообщение уходит почти сразу, подпись и отзывы дописываются правкой. */
+        val fast: Boolean = false,
+    ) {
         @Volatile var label: String? = null
         @Volatile var reportReady = !lookupPending
         @Volatile var ringing = false
@@ -43,6 +49,9 @@ class LiveCalls(private val app: AutobanApp) {
     }
 
     @Volatile private var current: Session? = null
+
+    /** Последний звонок, который начал проверять фильтр: номер и время. */
+    @Volatile private var screening: Pair<String?, Long>? = null
     private val pool = Executors.newCachedThreadPool()
     private val repo get() = app.repository
 
@@ -64,8 +73,8 @@ class LiveCalls(private val app: AutobanApp) {
      * Фильтр пропустил звонок — следим за ним. Возвращает true, если сообщение в Telegram
      * отправит сопровождение (а не обычная очередь).
      */
-    fun start(e: CallEvent, info: CallInfo, lookupPending: Boolean): Boolean {
-        val s = Session(e.id, info, System.currentTimeMillis(), lookupPending)
+    fun start(e: CallEvent, info: CallInfo, lookupPending: Boolean, contact: Boolean = false): Boolean {
+        val s = Session(e.id, info, System.currentTimeMillis(), lookupPending, contact, fast = contact || app.telegramSettings.snapshot().callerId)
         // Подпись могла прийти уже в фильтр (из системного лога).
         s.label = info.callerName?.takeIf(CallLabel::isOperatorLabel)
         current?.let { it.ended = true }
@@ -73,6 +82,47 @@ class LiveCalls(private val app: AutobanApp) {
         update(s) { it.copy(outcome = CallEvent.Outcome.RINGING) }
         pool.execute { runCatching { monitor(s) }.onFailure { Log.e(TAG, "live monitor failed", it) } }
         return telegramOn()
+    }
+
+    /** Фильтр начал проверять звонок — значит, сопровождать его будет он (см. [onRinging]). */
+    fun onScreening(number: String?) {
+        screening = PhoneNumbers.normalize(number) to System.currentTimeMillis()
+    }
+
+    /**
+     * Телефон зазвонил (системное событие PHONE_STATE). Звонки, прошедшие фильтр, уже сопровождаются.
+     * Остальные фильтр не видел — Android не проверяет номера из контактов. В режиме определителя
+     * записываем такой звонок в журнал и сообщаем о нём в Telegram, чтобы видеть все входящие.
+     */
+    fun onRinging(rawNumber: String?) {
+        val st = app.telegramSettings.snapshot()
+        if (!st.enabled || !st.configured || !st.callerId) return
+        val number = PhoneNumbers.normalize(rawNumber) ?: return
+        synchronized(this) {
+            val now = System.currentTimeMillis()
+            val cur = current
+            if (cur != null && !cur.ended && (cur.info.number == number || cur.info.number == null)) return
+            if (cur != null && cur.info.number == number && now - cur.started < SCREENING_GRACE_MS) return
+            val (screened, at) = screening ?: (null to 0L)
+            if (screened == number && now - at < SCREENING_GRACE_MS) return
+            val sim = runCatching { com.blkdem.autoban.screening.SimResolver(app).resolve(null) }.getOrNull()
+            val contact = Contacts.name(app, number)
+            val info = CallInfo(
+                timestamp = now, rawNumber = rawNumber, presentation = CallInfo.Presentation.PRESENTED,
+                simSlot = sim?.slot, subscriptionId = sim?.subscriptionId, simLabel = sim?.label,
+            )
+            val event = CallEvent.of(info, Decision(Action.ALLOW, Decision.Source.CONTACT), "фильтр звонков не вызывался (PHONE_STATE)")
+                .copy(contactName = contact)
+            val id = repo.insertEvent(event)
+            // Отзывы ищем, только если номера нет в контактах (или контакты не разрешены).
+            val lookupNumber = number.takeIf { contact == null && app.settings.lookupEnabled && app.lookup.supports(it) }
+            Log.i(TAG, "live $number: ringing without screening, contact=${contact != null}")
+            start(event.copy(id = id), info, lookupPending = lookupNumber != null, contact = true)
+            if (lookupNumber != null) app.lookup.lookupAsync(lookupNumber) { r ->
+                if (r != null) update(id) { it.copy(report = r) }
+                onReport(id)
+            }
+        }
     }
 
     /** Отзывы о номере готовы (или не нашлись). */
@@ -84,10 +134,10 @@ class LiveCalls(private val app: AutobanApp) {
 
     /** Тексты уведомления звонилки (см. [DialerNotificationListener]). */
     fun onNotificationTexts(texts: List<String?>) {
-        val s = current?.takeIf { !it.ended } ?: return
+        val s = current?.takeIf { !it.ended && !it.contact } ?: return
         val label = CallLabel.fromTexts(texts) ?: return
         if (label == s.label) return
-        pool.execute { applyLabel(s, label, "notification") }
+        pool.execute { applyLabel(s, label, CallInfo.LabelSource.NOTIFICATION) }
     }
 
     /** Кнопки «Сбросить» и «Бан» под сообщением о входящем. null — звонок уже не идёт, пусть выполнит обычный обработчик. */
@@ -136,9 +186,9 @@ class LiveCalls(private val app: AutobanApp) {
             val maxEnd = s.started + MAX_RING_MS
             var radioAt = 0L
             while (callState() == TelephonyManager.CALL_STATE_RINGING && System.currentTimeMillis() < maxEnd) {
-                if (s.label == null && System.currentTimeMillis() - radioAt > 1_000) {
+                if (s.label == null && !s.contact && System.currentTimeMillis() - radioAt > 1_000) {
                     radioAt = System.currentTimeMillis()
-                    RadioLog.label(app, s.started - 3_000)?.let { applyLabel(s, it, "radio log") }
+                    RadioLog.label(app, s.started - 3_000)?.let { applyLabel(s, it, CallInfo.LabelSource.RADIO_LOG) }
                 }
                 if (!s.tgDone && readyToSend(s)) sendTelegram(s)
                 Thread.sleep(250)
@@ -156,16 +206,21 @@ class LiveCalls(private val app: AutobanApp) {
 
         // Звонилка пишет подпись в журнал вызовов при отбое — даём ей записать и забираем.
         Thread.sleep(1_500)
-        if (s.label == null) CallLogReader.label(app, s.info.number, s.started)?.let { applyLabel(s, it, "call log") }
+        if (s.label == null && !s.contact) CallLogReader.label(app, s.info.number, s.started)?.let { applyLabel(s, it, CallInfo.LabelSource.CALL_LOG) }
         if (!s.tgDone) sendTelegram(s) else refreshTelegram(s)
         // Кнопки под сообщением можно нажать и позже — бот опросится через пару минут.
         if (telegramOn()) BotPoller.pollSoon(app, delaySeconds = 120)
     }
 
-    /** Отправляем, когда есть отзывы и подпись — или когда ждать их уже долго. */
+    /**
+     * Отправляем, когда есть отзывы и подпись — или когда ждать их уже долго.
+     * Определитель ждёт совсем недолго: сообщение важнее сразу, подпись и отзывы допишутся правкой.
+     */
     private fun readyToSend(s: Session): Boolean {
         val waited = System.currentTimeMillis() - s.started
-        return (s.reportReady || waited > WAIT_REPORT_MS) && (s.label != null || waited > WAIT_LABEL_MS)
+        val label = if (s.fast) FAST_WAIT_MS else WAIT_LABEL_MS
+        val report = if (s.fast) FAST_WAIT_MS else WAIT_REPORT_MS
+        return (s.reportReady || waited > report) && (s.label != null || s.contact || waited > label)
     }
 
     /** Пока звонит — непрерывно слушаем бота, чтобы кнопка «Сбросить» сработала сразу. */
@@ -182,8 +237,8 @@ class LiveCalls(private val app: AutobanApp) {
     }
 
     /** Подпись оператора пришла: записываем её и пересчитываем правила. Во время звонка — сбрасываем, если правило велит. */
-    private fun applyLabel(s: Session, label: String, from: String) {
-        val duringCall = from != "call log"
+    private fun applyLabel(s: Session, label: String, from: CallInfo.LabelSource) {
+        val duringCall = from != CallInfo.LabelSource.CALL_LOG
         synchronized(s.lock) {
             if (label == s.label) return
             s.label = label
@@ -191,7 +246,7 @@ class LiveCalls(private val app: AutobanApp) {
         Log.i(TAG, "live ${s.info.number ?: "hidden"}: label «$label» ($from)")
         val event = repo.event(s.eventId) ?: return
         val d = app.processor.decide(
-            s.info.copy(callerName = label, callerNamePresentation = CallInfo.Presentation.PRESENTED, report = event.report),
+            s.info.copy(callerName = label, callerNamePresentation = CallInfo.Presentation.PRESENTED, callerNameSource = from, report = event.report),
         )
         val dryRun = d.dryRunHits.takeIf { it.isNotEmpty() }?.joinToString("; ") { it.name }
         val byRule = d.source == Decision.Source.RULE && d.rejects
@@ -202,7 +257,7 @@ class LiveCalls(private val app: AutobanApp) {
             repo.addToList(ListType.BLOCK, n, note = label, ruleName = d.ruleName)
         }
         update(s) { e ->
-            var x = e.copy(callerName = label, dryRun = dryRun, wouldAction = if (byRule) d.action else d.wouldAction)
+            var x = e.copy(callerName = label, labelSource = from, dryRun = dryRun, wouldAction = if (byRule) d.action else d.wouldAction)
             when {
                 hung -> x = x.copy(action = d.action, source = d.source, ruleId = d.ruleId, ruleName = d.ruleName, outcome = CallEvent.Outcome.HUNG_UP_RULE)
                 // Не успели или нечем сбросить: звонок прошёл, но номер забанен на будущее.
@@ -234,9 +289,11 @@ class LiveCalls(private val app: AutobanApp) {
 
     // ---------------------------------------------------------------------------------------------
 
-    private fun update(s: Session, change: (CallEvent) -> CallEvent) {
+    private fun update(s: Session, change: (CallEvent) -> CallEvent) = update(s.eventId, change)
+
+    private fun update(eventId: Long, change: (CallEvent) -> CallEvent) {
         synchronized(repo.eventLock) {
-            val e = repo.event(s.eventId) ?: return
+            val e = repo.event(eventId) ?: return
             val n = change(e)
             if (n != e) repo.updateEvent(n)
         }
@@ -255,7 +312,7 @@ class LiveCalls(private val app: AutobanApp) {
             }
             s.tgDone = true
             try {
-                val id = st.client().sendMessage(st.chatId, TelegramFormat.event(e), st.silent, buttons(e, st.commands))
+                val id = st.client().sendMessage(st.chatId, TelegramFormat.event(e, TelegramNotifier.extras(repo, e)), st.silent, buttons(e, st.commands))
                 update(s) { it.copy(tgStatus = CallEvent.TgStatus.SENT, tgMessageId = id) }
                 Log.i(TAG, "live ${s.info.number ?: "hidden"}: telegram sent in ${System.currentTimeMillis() - s.started}ms")
             } catch (ex: TelegramClient.TelegramException) {
@@ -274,7 +331,7 @@ class LiveCalls(private val app: AutobanApp) {
             val id = e.tgMessageId ?: return
             val st = app.telegramSettings.snapshot()
             if (!st.configured) return
-            runCatching { st.client().editMessage(st.chatId, id, TelegramFormat.event(e), buttons(e, st.commands)) }
+            runCatching { st.client().editMessage(st.chatId, id, TelegramFormat.event(e, TelegramNotifier.extras(repo, e)), buttons(e, st.commands)) }
                 .onFailure { Log.w(TAG, "live telegram edit failed: ${it.message}") }
         }
     }
@@ -291,6 +348,10 @@ class LiveCalls(private val app: AutobanApp) {
         /** Сколько ждать подпись оператора и отзывы, прежде чем отправить сообщение без них. */
         private const val WAIT_LABEL_MS = 3_000L
         private const val WAIT_REPORT_MS = 4_000L
+        /** Определитель: сообщение уходит почти сразу. */
+        private const val FAST_WAIT_MS = 1_200L
+        /** Сколько после начала проверки фильтром звонок считается «его» (а не контактом). */
+        private const val SCREENING_GRACE_MS = 15_000L
 
         fun hasNotificationAccess(context: Context): Boolean =
             androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
