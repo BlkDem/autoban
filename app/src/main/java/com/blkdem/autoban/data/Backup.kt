@@ -33,6 +33,7 @@ data class Backup(
 
         fun encode(b: Backup): String = json.encodeToString(serializer(), b)
         fun decode(s: String): Backup = json.decodeFromString(serializer(), s)
+            .let { b -> b.copy(rules = b.rules.map(com.blkdem.autoban.rules.Rules::normalize)) }
     }
 
     fun entries(type: ListType) = if (type == ListType.BLOCK) blocklist else whitelist

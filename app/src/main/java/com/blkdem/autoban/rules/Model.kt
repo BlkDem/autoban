@@ -86,10 +86,22 @@ sealed interface Condition {
 
     /**
      * Подпись оператора (маркировка 41-ФЗ) вида «Организация: категория».
-     * Маски по организации и категории; пустая маска — любая. Обе пустые — «звонок маркирован».
+     * [mask] — маска на всю подпись (`*ростелеком*`, `*:*реклам*`); пустая — «звонок маркирован».
+     * [organization] и [category] — старый вид условия (две маски); при чтении сводятся в [mask], см. [merged].
      */
     @Serializable @SerialName("marking")
-    data class Marking(val organization: String = "", val category: String = "") : Condition
+    data class Marking(val mask: String = "", val organization: String = "", val category: String = "") : Condition {
+        /** Старые маски организации и категории — одной маской на всю подпись. */
+        fun merged(): Marking {
+            if (organization.isBlank() && category.isBlank()) return this
+            val joined = when {
+                category.isBlank() -> organization
+                organization.isBlank() -> "*:" + category
+                else -> "$organization:$category"
+            }
+            return Marking(mask = mask.ifBlank { joined })
+        }
+    }
 
     /** Оператор подписал звонок как «Звонок без маркировки» (компания без договора маркировки). */
     @Serializable @SerialName("unmarked")
