@@ -27,7 +27,7 @@ class RuleFromEventTest {
         assertEquals(listOf(Condition.CallerName("*Ростелеком*")), ruleFromEvent(ev("+79123456789", "Ростелеком", 2)).conditions)
         // Маркировка: правило по организации, на любой SIM.
         assertEquals(
-            listOf(Condition.Marking(organization = "*Ростелеком*")),
+            listOf(Condition.Marking(mask = "*Ростелеком*")),
             ruleFromEvent(ev("+79309131503", "Ростелеком: связь", 1)).conditions,
         )
     }

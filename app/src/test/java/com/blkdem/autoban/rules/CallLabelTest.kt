@@ -63,10 +63,37 @@ class CallLabelTest {
         assertFalse(m(Condition.Unmarked, "Ростелеком: связь"))
     }
 
+    @Test fun markingOneMask() {
+        val label = "Умный город. Интеграция: ИТ"
+        assertTrue(m(Condition.Marking(mask = "*умный*"), label))
+        assertTrue(m(Condition.Marking(mask = "*умный город*"), label))
+        assertTrue(m(Condition.Marking(mask = "*:*ит*"), label))
+        assertFalse(m(Condition.Marking(mask = "*ростелеком*"), label))
+        assertTrue(m(Condition.Marking(mask = "*ростелеком*"), "PAO Rostelekom: svyaz"))
+        // Не маркировка (нет «организация: категория») — условие не выполняется даже по маске.
+        assertFalse(m(Condition.Marking(mask = "*умный*"), "Умный город"))
+    }
+
+    @Test fun legacyMarkingMergesIntoOneMask() {
+        assertEquals(Condition.Marking(mask = "*ростелеком*"), Condition.Marking(organization = "*ростелеком*").merged())
+        assertEquals(Condition.Marking(mask = "*:*реклам*"), Condition.Marking(category = "*реклам*").merged())
+        assertEquals(Condition.Marking(mask = "*ростелеком*:*связ*"), Condition.Marking(organization = "*ростелеком*", category = "*связ*").merged())
+        assertEquals(Condition.Marking(), Condition.Marking().merged())
+        // Слитая маска ловит то же, что ловили две.
+        for (c in listOf(Condition.Marking(organization = "*ростелеком*", category = "*связ*"), Condition.Marking(category = "*реклам*"))) {
+            for (label in listOf("Ростелеком: связь", "OOO Romashka: reklama", "Сбер: банк")) {
+                assertEquals("$c / $label", m(c, label), m(c.merged(), label))
+            }
+        }
+        // Старое условие из БД читается уже слитым.
+        val legacyJson = """[{"type":"marking","organization":"*ростелеком*","category":"*связ*"}]"""
+        assertEquals(listOf(Condition.Marking(mask = "*ростелеком*:*связ*")), Rules.conditionsFromJson(legacyJson))
+    }
+
     @Test fun conditionsSerializeAndDescribe() {
-        val list = listOf(Condition.Marking("*ростелеком*", "*связ*"), Condition.Unmarked, Condition.Marking())
+        val list = listOf(Condition.Marking(mask = "*ростелеком*"), Condition.Unmarked, Condition.Marking())
         assertEquals(list, Rules.conditionsFromJson(Rules.conditionsToJson(list)))
-        assertEquals("маркировка: организация ~ «*ростелеком*», категория ~ «*связ*»", Rules.describe(list[0]))
+        assertEquals("маркировка ~ «*ростелеком*»", Rules.describe(list[0]))
         assertEquals("звонок без маркировки", Rules.describe(Condition.Unmarked))
         assertEquals("звонок маркирован", Rules.describe(Condition.Marking()))
     }

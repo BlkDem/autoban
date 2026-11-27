@@ -200,15 +200,14 @@ private fun ConditionCard(c: Condition, onChange: (Condition) -> Unit, onRemove:
                     NumberField("За минут", c.minutes, Modifier.weight(1f)) { onChange(c.copy(minutes = it.coerceAtLeast(1))) }
                 }
                 is Condition.Marking -> {
-                    OutlinedTextField(
-                        c.organization, { onChange(c.copy(organization = it.trim())) }, label = { Text("Организация (маска)") },
-                        singleLine = true, isError = !Mask(c.organization).isValid, modifier = Modifier.fillMaxWidth(),
-                        supportingText = { Text("Например: *ростелеком*  ·  *сбер*  ·  пусто — любая") },
-                    )
-                    OutlinedTextField(
-                        c.category, { onChange(c.copy(category = it.trim())) }, label = { Text("Категория (маска)") },
-                        singleLine = true, isError = !Mask(c.category).isValid, modifier = Modifier.fillMaxWidth(),
-                        supportingText = { Text("Например: *реклам*  ·  *связ*  ·  пусто — любая") },
+                    MaskField(
+                        c.merged().mask, { onChange(Condition.Marking(mask = it)) },
+                        hint = "Например: *ростелеком*  ·  *умный город*  ·  *:*реклам* — любая с категорией «реклама»  ·  пусто — любая маркировка",
+                        test = { mask, sample ->
+                            com.blkdem.autoban.rules.CallLabel.parse(sample) != null && (mask.isBlank() || Mask(mask).matches(sample))
+                        },
+                        sampleLabel = "Проверить на подписи",
+                        valid = { it.isBlank() || Mask(it).isValid },
                     )
                     Text(
                         "Подпись оператора вида «Ростелеком: связь» или «PAO MTS: svyaz». Маски понимают и латиницу. " +
@@ -227,7 +226,7 @@ private fun ConditionCard(c: Condition, onChange: (Condition) -> Unit, onRemove:
                         RatingField(c.maxRating, Modifier.weight(1f)) { onChange(c.copy(maxRating = it)) }
                     }
                     OutlinedTextField(
-                        c.category, { onChange(c.copy(category = it.trim())) }, label = { Text("Тип номера (маска)") }, singleLine = true,
+                        c.category, { onChange(c.copy(category = it)) }, label = { Text("Тип номера (маска)") }, singleLine = true,
                         isError = !Mask(c.category).isValid, modifier = Modifier.fillMaxWidth(),
                         supportingText = { Text("Например: *мошен*  ·  *коллект*  ·  пусто — любой тип") },
                     )

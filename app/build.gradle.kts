@@ -13,8 +13,8 @@ android {
         applicationId = "com.blkdem.autoban"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10400
-        versionName = "1.4.0"
+        versionCode = 10401
+        versionName = "1.4.1"
     }
 
     // Release key lives outside the repo; keystore.properties is git-ignored.

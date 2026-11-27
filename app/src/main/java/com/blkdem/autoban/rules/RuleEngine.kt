@@ -89,7 +89,8 @@ class RuleEngine {
         } ?: false
         is Condition.Reputation -> reputation(c, call.report)
         is Condition.Marking -> CallLabel.parse(call.callerName)?.let { m ->
-            (c.organization.isBlank() || Mask(c.organization).matches(m.organization)) &&
+            (c.mask.isBlank() || Mask(c.mask).matches(call.callerName)) &&
+                (c.organization.isBlank() || Mask(c.organization).matches(m.organization)) &&
                 (c.category.isBlank() || Mask(c.category).matches(m.category))
         } ?: false
         Condition.Unmarked -> CallLabel.isUnmarked(call.callerName)

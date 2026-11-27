@@ -16,12 +16,17 @@ object Rules {
         json.encodeToString(ListSerializer(Condition.serializer()), list)
 
     fun conditionsFromJson(s: String): List<Condition> =
-        json.decodeFromString(ListSerializer(Condition.serializer()), s)
+        normalize(json.decodeFromString(ListSerializer(Condition.serializer()), s))
+
+    /** Старые условия маркировки (организация + категория) — в одну маску. */
+    fun normalize(list: List<Condition>): List<Condition> = list.map { if (it is Condition.Marking) it.merged() else it }
+
+    fun normalize(r: Rule): Rule = r.copy(conditions = normalize(r.conditions))
 
     fun rulesToJson(list: List<Rule>): String =
         Json(json) { prettyPrint = true }.encodeToString(ListSerializer(Rule.serializer()), list)
 
-    fun rulesFromJson(s: String): List<Rule> = json.decodeFromString(ListSerializer(Rule.serializer()), s)
+    fun rulesFromJson(s: String): List<Rule> = json.decodeFromString(ListSerializer(Rule.serializer()), s).map(::normalize)
 
     /** Предустановленные правила (по требованиям владельца). Создаются в режиме DRY_RUN. */
     val defaults = listOf(
@@ -83,13 +88,7 @@ object Rules {
             if (c.maxRating > 0) add("оценка ≤ ${com.blkdem.autoban.lookup.NumberReport.fmtRating(c.maxRating)}")
             if (c.category.isNotBlank()) add("тип ~ «${c.category}»")
         }.joinToString(", ", prefix = "репутация: ")
-        is Condition.Marking -> when {
-            c.organization.isBlank() && c.category.isBlank() -> "звонок маркирован"
-            else -> buildList {
-                if (c.organization.isNotBlank()) add("организация ~ «${c.organization}»")
-                if (c.category.isNotBlank()) add("категория ~ «${c.category}»")
-            }.joinToString(", ", prefix = "маркировка: ")
-        }
+        is Condition.Marking -> c.merged().mask.let { if (it.isBlank()) "звонок маркирован" else "маркировка ~ «$it»" }
         Condition.Unmarked -> "звонок без маркировки"
     }
 

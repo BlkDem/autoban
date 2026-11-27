@@ -74,7 +74,7 @@ fun ruleFromEvent(e: CallEvent): Rule {
                 e.simSlot?.let { add(Condition.SimSlot(it)) }
                 add(Condition.NumberHidden)
             }
-            marking != null -> add(Condition.Marking(organization = "*${marking.organization}*"))
+            marking != null -> add(Condition.Marking(mask = "*${marking.organization}*"))
             !e.callerName.isNullOrBlank() -> add(Condition.CallerName("*${e.callerName.trim()}*"))
             else -> add(Condition.NumberMask(e.number))
         }
