@@ -56,6 +56,13 @@ fun JournalScreen(repo: Repository, onOpen: (CallEvent) -> Unit) {
         query = query,
     )
     val events = load(changes, f, initial = emptyList<CallEvent>()) { repo.events(f) }
+    // Новый звонок вставляется сверху. LazyColumn держит позицию на прежнем первом элементе,
+    // и новый оказался бы за краем экрана — если смотрим верх журнала, показываем его.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val topId = events.firstOrNull()?.id
+    androidx.compose.runtime.LaunchedEffect(topId) {
+        if (listState.firstVisibleItemIndex <= 1) listState.scrollToItem(0)
+    }
 
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
@@ -79,7 +86,7 @@ fun JournalScreen(repo: Repository, onOpen: (CallEvent) -> Unit) {
                 modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(events, key = { it.id }) { e ->
                 EventRow(e, Modifier.clickable { onOpen(e) })
                 HorizontalDivider()
@@ -99,6 +106,7 @@ fun EventRow(e: CallEvent, modifier: Modifier = Modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(fmtShort(e.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("SIM${e.simSlot ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            e.contactName?.let { Text("👤 $it", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold) }
             e.callerName?.let { Text("«$it»", style = MaterialTheme.typography.bodySmall) }
             e.outcome?.takeIf { it != com.blkdem.autoban.data.CallEvent.Outcome.RINGING || System.currentTimeMillis() - e.timestamp < 180_000 }
                 ?.let { Text(outcomeLabel(it), style = MaterialTheme.typography.bodySmall) }

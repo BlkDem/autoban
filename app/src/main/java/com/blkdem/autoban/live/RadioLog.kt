@@ -18,7 +18,7 @@ object RadioLog {
     private const val TAG = "Autoban"
     const val GRANT_COMMAND = "adb shell pm grant com.blkdem.autoban android.permission.READ_LOGS"
 
-    fun available(context: Context): Boolean =
+    fun available(context: Context): Boolean = com.blkdem.autoban.Features.radioLog &&
         context.checkSelfPermission(Manifest.permission.READ_LOGS) == PackageManager.PERMISSION_GRANTED
 
     /** Последняя подпись звонка, записанная в лог не раньше [since] (мс). null — подписи нет или лог недоступен. */

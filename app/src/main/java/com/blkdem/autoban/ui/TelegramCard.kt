@@ -124,19 +124,21 @@ fun TelegramCard(
                     if (it) ask(android.Manifest.permission.READ_PHONE_STATE, android.Manifest.permission.READ_CALL_LOG, android.Manifest.permission.READ_CONTACTS)
                 })
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Пересылать SMS", style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        "Входящие SMS уходят в чат с ботом — включая коды подтверждения из банков. " +
-                            "Telegram хранит их у себя: включайте, только если доступ к вашему Telegram надёжно защищён.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+            if (com.blkdem.autoban.Features.smsForwarding) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Пересылать SMS", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            "Входящие SMS уходят в чат с ботом — включая коды подтверждения из банков. " +
+                                "Telegram хранит их у себя: включайте, только если доступ к вашему Telegram надёжно защищён.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Switch(s.forwardSms, {
+                        s = s.copy(forwardSms = it)
+                        if (it) ask(android.Manifest.permission.RECEIVE_SMS, android.Manifest.permission.READ_PHONE_STATE, android.Manifest.permission.READ_CONTACTS)
+                    })
                 }
-                Switch(s.forwardSms, {
-                    s = s.copy(forwardSms = it)
-                    if (it) ask(android.Manifest.permission.RECEIVE_SMS, android.Manifest.permission.READ_PHONE_STATE, android.Manifest.permission.READ_CONTACTS)
-                })
             }
             Text("Как отправлять", style = MaterialTheme.typography.labelLarge)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

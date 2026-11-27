@@ -13,8 +13,8 @@ android {
         applicationId = "com.blkdem.autoban"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10300
-        versionName = "1.3.0"
+        versionCode = 10400
+        versionName = "1.4.0"
     }
 
     // Release key lives outside the repo; keystore.properties is git-ignored.
@@ -38,7 +38,24 @@ android {
             signingConfig = releaseSigning
         }
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    // full — сборка для GitHub: всё, включая пересылку SMS и системный лог (READ_LOGS через adb).
+    // play — сборка для Google Play: без SMS и READ_LOGS (политика Play разрешает их только узкому кругу приложений).
+    flavorDimensions += "store"
+    productFlavors {
+        create("full") {
+            dimension = "store"
+            buildConfigField("boolean", "PLAY", "false")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("boolean", "PLAY", "true")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -15,6 +15,9 @@ captures/
 .externalNativeBuild/
 .cxx/
 
+# Материалы для Google Play (картинки, тексты, AAB) — локально
+store/
+
 # OS
 .DS_Store
 Thumbs.db
