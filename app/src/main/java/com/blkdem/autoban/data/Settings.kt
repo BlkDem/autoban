@@ -27,6 +27,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean("lookup", true)
         set(v) { prefs.edit().putBoolean("lookup", v).apply(); changed() }
 
+    /** Пользователь прочитал, что приложение делает с данными (окно при первом запуске). */
+    var disclosureAccepted: Boolean
+        get() = prefs.getBoolean("disclosure_accepted", false)
+        set(v) { prefs.edit().putBoolean("disclosure_accepted", v).apply(); changed() }
+
     var lastCleanup: Long
         get() = prefs.getLong("last_cleanup", 0)
         set(v) { prefs.edit().putLong("last_cleanup", v).apply() }

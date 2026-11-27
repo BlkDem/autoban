@@ -59,7 +59,7 @@ class TelegramSettings(private val settings: Settings) {
         ),
         commands = p.getBoolean("tg_commands", true),
         callerId = p.getBoolean("tg_callerid", false),
-        forwardSms = p.getBoolean("tg_sms", false),
+        forwardSms = com.blkdem.autoban.Features.smsForwarding && p.getBoolean("tg_sms", false),
     )
 
     /** offset для getUpdates — следующий необработанный update_id. */

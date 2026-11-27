@@ -289,5 +289,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (tester) TesterDialog(simulate = app.processor::simulate, onDismiss = { tester = false })
+        val accepted = remember(settingsChanges) { app.settings.disclosureAccepted }
+        if (!accepted) com.blkdem.autoban.ui.DisclosureDialog(
+            onAccept = { app.settings.disclosureAccepted = true },
+            onDecline = { finish() },
+        )
     }
 }

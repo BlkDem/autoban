@@ -138,13 +138,14 @@ adb shell pm grant com.blkdem.autoban android.permission.READ_LOGS
 ## Разработка
 
 - Kotlin, Jetpack Compose (Material 3), SQLite, WorkManager, kotlinx.serialization.
-- `gradlew testDebugUnitTest` — unit-тесты движка правил, масок, форматирования.
+- Две сборки (`productFlavors`): **full** — для GitHub, со всем; **play** — для Google Play, без пересылки SMS и системного лога (`app/src/play/AndroidManifest.xml` убирает разрешения, `Features` прячет настройки).
+- `gradlew testFullDebugUnitTest` — unit-тесты движка правил, масок, форматирования.
 - Эмулятор: `adb shell cmd role add-role-holder android.app.role.CALL_SCREENING com.blkdem.autoban`, затем `adb emu gsm call 89991234567`.
 - Секреты (токен бота для ручных проверок) — только в `.env`, он в `.gitignore`.
 
 ### Релизная сборка
 
-`gradlew assembleRelease` собирает сжатый R8 APK в `app/build/outputs/apk/release/`. Подпись берётся из `keystore.properties` в корне репозитория (в `.gitignore`):
+`gradlew assembleFullRelease` собирает сжатый R8 APK для GitHub в `app/build/outputs/apk/full/release/`, `gradlew bundlePlayRelease` — AAB для Google Play в `app/build/outputs/bundle/playRelease/`. Подпись берётся из `keystore.properties` в корне репозитория (в `.gitignore`):
 
 ```
 storeFile=C:/путь/к/autoban-release.jks
@@ -155,6 +156,6 @@ keyPassword=...
 
 Без этого файла релиз собирается неподписанным. Ключ нельзя терять: обновления ставятся поверх только при подписи тем же ключом. Перед публикацией проверяйте релизный APK на устройстве — R8 может вырезать то, что создаётся через отражение (правила в `app/proguard-rules.pro`).
 
-Список изменений — [CHANGELOG.md](CHANGELOG.md).
+Список изменений — [CHANGELOG.md](CHANGELOG.md). Политика конфиденциальности — [PRIVACY.md](PRIVACY.md).
 
 План и статус работ — [PLAN.md](PLAN.md).

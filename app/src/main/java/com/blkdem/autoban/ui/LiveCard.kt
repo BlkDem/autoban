@@ -38,7 +38,7 @@ fun LiveCard(
             Line(status.notificationAccess, "Доступ к уведомлениям — видеть подпись во время звонка", "Открыть", onNotificationAccess)
             Line(status.answerCalls, "Управление звонками — сбрасывать звонок", "Разрешить", onAnswerCalls)
             Line(status.callLog, "Журнал вызовов — подпись после звонка", "Разрешить", onCallLog)
-            Line(
+            if (com.blkdem.autoban.Features.radioLog) Line(
                 status.radioLog,
                 "Системный лог — подпись сразу, звонок с ней сбрасывается до звонка. Выдаётся один раз с компьютера: " +
                     RadioLog.GRANT_COMMAND,
