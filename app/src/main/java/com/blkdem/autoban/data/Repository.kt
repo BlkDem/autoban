@@ -61,6 +61,8 @@ class Repository(context: Context) {
         put("lookup", e.report?.let(::reportToJson))
         put("outcome", e.outcome?.name)
         put("tg_message_id", e.tgMessageId)
+        put("label_src", e.labelSource?.name)
+        put("contact", e.contactName)
     }).also { changed() }
 
     /** Перезаписать изменяемые поля события. */
@@ -77,6 +79,8 @@ class Repository(context: Context) {
             put("lookup", e.report?.let(::reportToJson))
             put("outcome", e.outcome?.name)
             put("tg_message_id", e.tgMessageId)
+            put("label_src", e.labelSource?.name)
+            put("contact", e.contactName)
         }, "id = ?", arrayOf(e.id.toString()))
         changed()
     }
@@ -138,6 +142,12 @@ class Repository(context: Context) {
         db.rawQuery("SELECT COUNT(*) FROM events WHERE number = ? AND ts >= ?", arrayOf(number, sinceMillis.toString()))
             .use { if (it.moveToFirst()) it.getInt(0) else 0 }
 
+    /** Звонки с номера до [beforeTs]: сколько их было и когда последний. */
+    fun previousCalls(number: String, beforeTs: Long): Pair<Int, Long?> =
+        db.rawQuery("SELECT COUNT(*), MAX(ts) FROM events WHERE number = ? AND ts < ?", arrayOf(number, beforeTs.toString())).use { c ->
+            if (!c.moveToFirst()) 0 to null else c.getInt(0) to (if (c.isNull(1)) null else c.getLong(1))
+        }
+
     fun setTgStatus(ids: Collection<Long>, status: CallEvent.TgStatus) {
         if (ids.isEmpty()) return
         db.execSQL("UPDATE events SET tg_status = ? WHERE id IN (${ids.joinToString(",")})", arrayOf(status.name))
@@ -182,6 +192,8 @@ class Repository(context: Context) {
         report = reportFromJson(str("lookup")),
         outcome = str("outcome")?.let { runCatching { CallEvent.Outcome.valueOf(it) }.getOrNull() },
         tgMessageId = long("tg_message_id"),
+        labelSource = str("label_src")?.let { runCatching { CallInfo.LabelSource.valueOf(it) }.getOrNull() },
+        contactName = str("contact"),
     )
 
     data class Stats(val total: Int, val allowed: Int, val rejected: Int, val banned: Int, val dryRun: Int, val sim1: Int, val sim2: Int)
@@ -313,6 +325,9 @@ class Repository(context: Context) {
         if (added > 0) changed()
         return added
     }
+
+    /** Запись списка, под которую подходит номер (точный номер или маска). */
+    fun listEntryFor(type: ListType, number: String): ListEntry? = list(type).firstOrNull { it.matches(number) }
 
     fun isInList(type: ListType, pattern: String): Boolean =
         db.rawQuery("SELECT 1 FROM lists WHERE type = ? AND pattern = ?", arrayOf(type.name, pattern)).use { it.moveToFirst() }

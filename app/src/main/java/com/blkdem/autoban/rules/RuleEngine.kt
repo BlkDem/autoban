@@ -23,7 +23,8 @@ data class Decision(
     /** Правила в режиме DRY_RUN, которые сработали бы. */
     val dryRunHits: List<Rule> = emptyList(),
 ) {
-    enum class Source { DEFAULT, WHITELIST, BLOCKLIST, RULE, DISABLED, MANUAL }
+    /** CONTACT — номер из контактов: фильтр звонков Android для них не вызывается, звонок увидели по «телефон звонит». */
+    enum class Source { DEFAULT, WHITELIST, BLOCKLIST, RULE, DISABLED, MANUAL, CONTACT }
 
     val rejects: Boolean get() = action != Action.ALLOW
 

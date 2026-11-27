@@ -29,6 +29,23 @@ object PhoneNumbers {
         return "https://yandex.ru/search/?text=" + java.net.URLEncoder.encode("$n кто звонил", "UTF-8")
     }
 
+    /** Тип номера по коду: «мобильный», «городской», «8-800»… null — не понять. */
+    fun kind(normalized: String?): String? {
+        val n = normalized ?: return null
+        if (n.startsWith("+7") && n.length == 12) {
+            return when {
+                n[2] == '9' -> "мобильный"
+                n.startsWith("+7800") -> "бесплатный 8-800"
+                n.startsWith("+780") -> "платный сервисный 8-80x"
+                n[2] == '3' || n[2] == '4' || n[2] == '8' -> "городской"
+                n[2] == '6' || n[2] == '7' -> "Казахстан"
+                else -> null
+            }
+        }
+        if (n.startsWith("+")) return "международный"
+        return if (n.length <= 6) "короткий" else null
+    }
+
     /** `+79123456789` → `+7 912 345-67-89`. */
     fun pretty(normalized: String?): String {
         if (normalized == null) return "скрыт"

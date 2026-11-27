@@ -8,6 +8,8 @@ data class CallInfo(
     val presentation: Presentation,
     val callerName: String? = null,
     val callerNamePresentation: Presentation = Presentation.UNKNOWN,
+    /** Откуда взята подпись [callerName]. */
+    val callerNameSource: LabelSource? = null,
     val simSlot: Int? = null,          // 1, 2 …; null — не удалось определить
     val subscriptionId: Int? = null,
     val simLabel: String? = null,
@@ -16,6 +18,14 @@ data class CallInfo(
     val report: com.blkdem.autoban.lookup.NumberReport? = null,
 ) {
     enum class Presentation { PRESENTED, HIDDEN, UNKNOWN }
+
+    /** Откуда пришла подпись звонка (маркировка оператора). */
+    enum class LabelSource(val title: String) {
+        NETWORK("передана сетью"),
+        RADIO_LOG("системный лог"),
+        NOTIFICATION("уведомление звонилки"),
+        CALL_LOG("журнал вызовов"),
+    }
 
     /** Номер в каноническом виде (+7…), null — если номера нет. */
     val number: String? by lazy {
